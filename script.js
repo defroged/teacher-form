@@ -47,6 +47,9 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
     return;
   }
 
+  // Show the upload loader
+  document.getElementById('uploadLoader').style.display = 'block';
+
   const imageUrls = [];
   for (let i = 0; i < fileInput.files.length; i++) {
     const file = fileInput.files[i];
@@ -80,6 +83,9 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
   } catch (error) {
     console.error(error);
     alert(error.message);
+  } finally {
+    // Hide the upload loader regardless of success or error
+    document.getElementById('uploadLoader').style.display = 'none';
   }
 });
 
@@ -106,6 +112,9 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
   });
 
   const selectedClass = document.getElementById('classDropdown').value;
+
+  // Show the submission loader
+  document.getElementById('submitLoader').style.display = 'block';
 
   try {
     // 1. Call our new API endpoint to process the list of selected words via OpenAI
@@ -139,10 +148,15 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 
+    // Hide the submission loader before showing success alert
+    document.getElementById('submitLoader').style.display = 'none';
+
     alert('Vocabulary successfully stored in Firestore!');
   } catch (err) {
     console.error('Error storing vocabulary:', err);
     alert('Error storing vocabulary: ' + err.message);
+  } finally {
+    // Hide the submission loader in case of error
+    document.getElementById('submitLoader').style.display = 'none';
   }
 });
-

@@ -10,6 +10,12 @@
 <body>
   <div class="container">
     <h1>Vocabulary Extractor</h1>
+    
+    <!-- Loader for image upload -->
+    <div id="uploadLoader" class="loader" style="display: none; text-align: center; font-weight: bold; margin-bottom: 10px;">
+      Processing images, please wait...
+    </div>
+    
     <form id="uploadForm" class="form-card">
       <div class="form-group">
         <label for="classDropdown">Select Class:</label>
@@ -27,15 +33,22 @@
     </form>
 
     <div id="vocabularyList" class="vocab-card"></div>
-	
-<div class="form-card" style="margin-top: 20px;">
-  <div class="form-group">
-    <label for="additionalWord">Add new word or phrase:</label>
-    <input type="text" id="additionalWord" class="form-control" placeholder="Enter word or phrase" />
-  </div>
-  <button id="addWordBtn" class="btn" type="button">Add to List</button>
-</div>
-<button id="submitVocabulary" class="btn" style="display: none;">Submit Selected Vocabulary</button>
+  
+    <div class="form-card" style="margin-top: 20px;">
+      <div class="form-group">
+        <label for="additionalWord">Add new word or phrase:</label>
+        <input type="text" id="additionalWord" class="form-control" placeholder="Enter word or phrase" />
+      </div>
+      <button id="addWordBtn" class="btn" type="button">Add to List</button>
+    </div>
+    
+    <button id="submitVocabulary" class="btn" style="display: none;">Submit Selected Vocabulary</button>
+    
+    <!-- Loader for vocabulary submission -->
+    <div id="submitLoader" class="loader" style="display: none; text-align: center; font-weight: bold; margin-top: 10px;">
+      Saving vocabulary, please wait...
+    </div>
+    
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>

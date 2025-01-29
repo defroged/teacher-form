@@ -37,7 +37,7 @@ export default async function handler(req, res) {
       For each of these words, create an object with:
       - "english": the word or phrase in English,
       - "japanese": the Japanese translation of that word or phrase,
-      - "englishExample": an example sentence in English using that word or phrase,
+      - "englishExample": an example sentence (in simple English aimed at junior high school ESL students) using that word or phrase, 
       - "japaneseExample": a Japanese translation of that example sentence.
 
       The words:

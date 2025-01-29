@@ -17,7 +17,6 @@ export default async function handler(req, res) {
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  // Construct the system/user messages for Chat Completion
   const messages = [
     {
       role: "user",

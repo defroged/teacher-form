@@ -99,11 +99,21 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     const submissionsRef = classDocRef.collection('Submissions');
 
     // Create a new document inside the "Submissions" subcollection
-    const docId = Date.now().toString();
+// Format the date/time as "YYYY-MM-DD-HH:MM"
+const now = new Date();
+const year = now.getFullYear();
+const month = String(now.getMonth() + 1).padStart(2, '0');
+const day = String(now.getDate()).padStart(2, '0');
+const hours = String(now.getHours()).padStart(2, '0');
+const minutes = String(now.getMinutes()).padStart(2, '0');
+
+const docId = `${year}-${month}-${day}-${hours}:${minutes}`;
+
 await submissionsRef.doc(docId).set({
   Vocabulary: selectedVocabulary,
   timestamp: firebase.firestore.FieldValue.serverTimestamp()
 });
+
 
 
     alert('Vocabulary successfully stored in Firestore!');

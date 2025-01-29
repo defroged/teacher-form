@@ -99,10 +99,12 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     const submissionsRef = classDocRef.collection('Submissions');
 
     // Create a new document inside the "Submissions" subcollection
-    await submissionsRef.add({
-      Vocabulary: selectedVocabulary,
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    const docId = Date.now().toString();
+await submissionsRef.doc(docId).set({
+  Vocabulary: selectedVocabulary,
+  timestamp: firebase.firestore.FieldValue.serverTimestamp()
+});
+
 
     alert('Vocabulary successfully stored in Firestore!');
   } catch (err) {

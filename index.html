@@ -4,34 +4,44 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Teacher Form</title>
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
-
 <body>
-  <h1>Vocabulary Extractor</h1>
+  <div class="container">
+    <h1>Vocabulary Extractor</h1>
 
-  <form id="uploadForm">
-  <!-- Class selection dropdown -->
-  <label for="classDropdown">Select Class:</label>
-  <select id="classDropdown">
-    <option value="Apricot">Apricot</option>
-    <option value="Strawberry">Strawberry</option>
-  </select>
-  
-  <br><br>
-  
-  <label for="imageFiles">Choose images:</label>
-  <input type="file" id="imageFiles" name="imageFiles" accept="image/*" multiple>
-  <button type="submit">Upload</button>
-</form>
+    <form id="uploadForm" class="form-card">
+      <!-- Class selection dropdown -->
+      <div class="form-group">
+        <label for="classDropdown">Select Class:</label>
+        <select id="classDropdown" class="form-control">
+          <option value="Apricot">Apricot</option>
+          <option value="Strawberry">Strawberry</option>
+        </select>
+      </div>
+      
+      <!-- Image upload -->
+      <div class="form-group">
+        <label for="imageFiles">Choose images:</label>
+        <input type="file" id="imageFiles" name="imageFiles" accept="image/*" multiple class="form-control">
+      </div>
+      
+      <button type="submit" class="btn">Upload</button>
+    </form>
 
-<div id="vocabularyList"></div>
+    <div id="vocabularyList" class="vocab-card"></div>
 
-<button id="submitVocabulary" style="display: none;">Submit Selected Vocabulary</button>
+    <button id="submitVocabulary" class="btn" style="display: none;">Submit Selected Vocabulary</button>
+  </div>
 
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <!-- Firebase Scripts -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="script.js"></script>
 </body>
+
+
 </html>

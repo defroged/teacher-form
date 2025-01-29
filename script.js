@@ -1,3 +1,19 @@
+// -------------------- Firebase Config --------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyCTdo6AfCDj3yVCnndBCIOrLRm7oOaDFW8",
+  authDomain: "bs-class-database.firebaseapp.com",
+  projectId: "bs-class-database",
+  storageBucket: "bs-class-database.firebasestorage.app",
+  messagingSenderId: "577863988524",
+  appId: "1:577863988524:web:dc28f58ed0350419d62889"
+};
+
+// Initialize Firebase
+const app = firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+// ---------------------------------------------------------
+
 document.getElementById('uploadForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const fileInput = document.getElementById('imageFiles');
@@ -21,6 +37,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
   }
 
   try {
+    // Call your backend to extract text-based data from images
     const response = await fetch('/api/extractDataFromImages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -44,7 +61,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
         const checkbox = document.createElement('input');
         checkbox.type = 'checkbox';
         checkbox.value = word;
-        checkbox.checked = true; // <-- Default to checked
+        checkbox.checked = true; // default checked
 
         label.appendChild(checkbox);
         label.appendChild(document.createTextNode(word));
@@ -62,7 +79,7 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
   }
 });
 
-document.getElementById('submitVocabulary').addEventListener('click', () => {
+document.getElementById('submitVocabulary').addEventListener('click', async () => {
   const checkboxes = document.querySelectorAll('#vocabularyList input[type="checkbox"]');
   const selectedVocabulary = [];
   checkboxes.forEach((checkbox) => {
@@ -70,7 +87,26 @@ document.getElementById('submitVocabulary').addEventListener('click', () => {
       selectedVocabulary.push(checkbox.value);
     }
   });
-  // For now we just log them, but in the future we can store them in the DB
-  console.log('Selected Vocabulary:', selectedVocabulary);
-  alert('Submitted! (not actually stored yet)');
+
+  // Get the selected class from the dropdown
+  const selectedClass = document.getElementById('classDropdown').value;
+
+  try {
+    // Reference to the chosen class doc in "Academic-classes" collection
+    const classDocRef = db.collection('Academic-classes').doc(selectedClass);
+
+    // Subcollection "Submissions" for each new set of vocabulary
+    const newCollectionRef = classDocRef.collection(Date.now().toString());
+
+    // Create a new document inside the subcollection
+    await newCollectionRef.add({
+      Vocabulary: selectedVocabulary,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    alert('Vocabulary successfully stored in Firestore!');
+  } catch (err) {
+    console.error('Error storing vocabulary:', err);
+    alert('Error storing vocabulary: ' + err.message);
+  }
 });

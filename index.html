@@ -9,15 +9,27 @@
   <h1>Vocabulary Extractor</h1>
 
   <form id="uploadForm">
-    <label for="imageFiles">Choose images:</label>
-    <input type="file" id="imageFiles" name="imageFiles" accept="image/*" multiple>
-    <button type="submit">Upload</button>
-  </form>
+  <!-- Class selection dropdown -->
+  <label for="classDropdown">Select Class:</label>
+  <select id="classDropdown">
+    <option value="Apricot">Apricot</option>
+    <option value="Strawberry">Strawberry</option>
+  </select>
+  
+  <br><br>
+  
+  <label for="imageFiles">Choose images:</label>
+  <input type="file" id="imageFiles" name="imageFiles" accept="image/*" multiple>
+  <button type="submit">Upload</button>
+</form>
 
-  <div id="vocabularyList"></div>
+<div id="vocabularyList"></div>
 
-  <button id="submitVocabulary" style="display: none;">Submit Selected Vocabulary</button>
+<button id="submitVocabulary" style="display: none;">Submit Selected Vocabulary</button>
 
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
   <script src="script.js"></script>
 </body>
 </html>

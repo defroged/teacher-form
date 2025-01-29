@@ -33,7 +33,17 @@
 
     <div id="vocabularyList" class="vocab-card"></div>
 
-    <button id="submitVocabulary" class="btn" style="display: none;">Submit Selected Vocabulary</button>
+<!-- New section to allow adding more words -->
+<div class="form-card" style="margin-top: 20px;">
+  <div class="form-group">
+    <label for="additionalWord">Add new word or phrase:</label>
+    <input type="text" id="additionalWord" class="form-control" placeholder="Enter word or phrase" />
+  </div>
+  <button id="addWordBtn" class="btn" type="button">Add to List</button>
+</div>
+
+<button id="submitVocabulary" class="btn" style="display: none;">Submit Selected Vocabulary</button>
+
   </div>
 
   <!-- Firebase Scripts -->

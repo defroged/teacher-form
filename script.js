@@ -79,6 +79,33 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
   }
 });
 
+// -------------------- Add More Words Logic --------------------
+document.getElementById('addWordBtn').addEventListener('click', () => {
+  const additionalWordInput = document.getElementById('additionalWord');
+  const newWord = additionalWordInput.value.trim();
+
+  if (!newWord) {
+    alert('Please enter a word or phrase before adding!');
+    return;
+  }
+
+  const vocabularyListDiv = document.getElementById('vocabularyList');
+  const label = document.createElement('label');
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.value = newWord;
+  checkbox.checked = true; // default checked
+
+  label.appendChild(checkbox);
+  label.appendChild(document.createTextNode(newWord));
+  vocabularyListDiv.appendChild(label);
+  vocabularyListDiv.appendChild(document.createElement('br'));
+
+  // Clear the input field
+  additionalWordInput.value = '';
+});
+
+// -------------------- Submit Vocabulary to Firestore --------------------
 document.getElementById('submitVocabulary').addEventListener('click', async () => {
   const checkboxes = document.querySelectorAll('#vocabularyList input[type="checkbox"]');
   const selectedVocabulary = [];
@@ -99,22 +126,19 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     const submissionsRef = classDocRef.collection('Submissions');
 
     // Create a new document inside the "Submissions" subcollection
-// Format the date/time as "YYYY-MM-DD-HH:MM"
-const now = new Date();
-const year = now.getFullYear();
-const month = String(now.getMonth() + 1).padStart(2, '0');
-const day = String(now.getDate()).padStart(2, '0');
-const hours = String(now.getHours()).padStart(2, '0');
-const minutes = String(now.getMinutes()).padStart(2, '0');
+    // Format the date/time as "YYYY-MM-DD-HH:MM"
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const docId = `${year}-${month}-${day}-${hours}:${minutes}`;
 
-const docId = `${year}-${month}-${day}-${hours}:${minutes}`;
-
-await submissionsRef.doc(docId).set({
-  Vocabulary: selectedVocabulary,
-  timestamp: firebase.firestore.FieldValue.serverTimestamp()
-});
-
-
+    await submissionsRef.doc(docId).set({
+      Vocabulary: selectedVocabulary,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
 
     alert('Vocabulary successfully stored in Firestore!');
   } catch (err) {

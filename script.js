@@ -14,6 +14,42 @@ const db = firebase.firestore();
 const storage = firebase.storage();
 // ---------------------------------------------------------
 
+// A global array to keep all vocabulary added or extracted
+let globalVocabulary = [];
+
+/**
+ * Renders the vocabulary list in the DOM based on globalVocabulary
+ */
+function renderVocabularyList() {
+  const vocabularyListDiv = document.getElementById('vocabularyList');
+  vocabularyListDiv.innerHTML = '';
+
+  // If there's no vocabulary, show a message and hide the submit button
+  if (globalVocabulary.length === 0) {
+    vocabularyListDiv.textContent = 'No vocabulary found.';
+    document.getElementById('submitVocabulary').style.display = 'none';
+    return;
+  }
+
+  // Otherwise, build checkboxes
+  globalVocabulary.forEach((word) => {
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = word;
+    checkbox.checked = true; // default checked
+
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(word));
+    vocabularyListDiv.appendChild(label);
+    vocabularyListDiv.appendChild(document.createElement('br'));
+  });
+
+  // Show the submit button
+  document.getElementById('submitVocabulary').style.display = 'inline-block';
+}
+
+// -------------------- Image Upload & Extraction --------------------
 document.getElementById('uploadForm').addEventListener('submit', async (event) => {
   event.preventDefault();
   const fileInput = document.getElementById('imageFiles');
@@ -52,34 +88,18 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
     const { processedData } = await response.json();
     const vocabularyArr = processedData.vocabulary || [];
 
-    const vocabularyListDiv = document.getElementById('vocabularyList');
-    vocabularyListDiv.innerHTML = ''; // Clear previous items
+    // Merge any newly extracted words with the existing ones (remove duplicates using a Set)
+    globalVocabulary = [...new Set([...globalVocabulary, ...vocabularyArr])];
 
-    if (vocabularyArr.length > 0) {
-      vocabularyArr.forEach((word) => {
-        const label = document.createElement('label');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = word;
-        checkbox.checked = true; // default checked
-
-        label.appendChild(checkbox);
-        label.appendChild(document.createTextNode(word));
-        vocabularyListDiv.appendChild(label);
-        vocabularyListDiv.appendChild(document.createElement('br'));
-      });
-      document.getElementById('submitVocabulary').style.display = 'inline-block';
-    } else {
-      vocabularyListDiv.textContent = 'No vocabulary found.';
-      document.getElementById('submitVocabulary').style.display = 'none';
-    }
+    // Update the UI with the merged list
+    renderVocabularyList();
   } catch (error) {
     console.error(error);
     alert(error.message);
   }
 });
 
-// -------------------- Add More Words Logic --------------------
+// -------------------- Add Word Before Uploading --------------------
 document.getElementById('addWordBtn').addEventListener('click', () => {
   const additionalWordInput = document.getElementById('additionalWord');
   const newWord = additionalWordInput.value.trim();
@@ -89,17 +109,11 @@ document.getElementById('addWordBtn').addEventListener('click', () => {
     return;
   }
 
-  const vocabularyListDiv = document.getElementById('vocabularyList');
-  const label = document.createElement('label');
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.value = newWord;
-  checkbox.checked = true; // default checked
+  // Add the new word to the global list (avoid duplicates with a Set)
+  globalVocabulary = [...new Set([...globalVocabulary, newWord])];
 
-  label.appendChild(checkbox);
-  label.appendChild(document.createTextNode(newWord));
-  vocabularyListDiv.appendChild(label);
-  vocabularyListDiv.appendChild(document.createElement('br'));
+  // Re-render the list
+  renderVocabularyList();
 
   // Clear the input field
   additionalWordInput.value = '';
@@ -107,6 +121,7 @@ document.getElementById('addWordBtn').addEventListener('click', () => {
 
 // -------------------- Submit Vocabulary to Firestore --------------------
 document.getElementById('submitVocabulary').addEventListener('click', async () => {
+  // Gather only the checked items from the UI
   const checkboxes = document.querySelectorAll('#vocabularyList input[type="checkbox"]');
   const selectedVocabulary = [];
   checkboxes.forEach((checkbox) => {

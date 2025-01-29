@@ -1,0 +1,36 @@
+body {
+  font-family: sans-serif;
+  margin: 20px;
+  background-color: #f4f4f4;
+}
+
+h1 {
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+form {
+  margin-bottom: 20px;
+  background-color: #ffffff;
+  padding: 10px;
+  border: 1px solid #ccc;
+  display: inline-block;
+}
+
+label {
+  display: block;
+  margin: 10px 0;
+}
+
+#vocabularyList {
+  margin-top: 20px;
+  padding: 10px;
+  background-color: #ffffff;
+  border: 1px solid #ccc;
+}
+
+button {
+  padding: 8px 16px;
+  cursor: pointer;
+  margin-top: 10px;
+}

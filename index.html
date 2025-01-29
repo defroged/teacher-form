@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Teacher Form</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <h1>Vocabulary Extractor</h1>
+
+  <form id="uploadForm">
+    <label for="imageFiles">Choose images:</label>
+    <input type="file" id="imageFiles" name="imageFiles" accept="image/*" multiple>
+    <button type="submit">Upload</button>
+  </form>
+
+  <div id="vocabularyList"></div>
+
+  <button id="submitVocabulary" style="display: none;">Submit Selected Vocabulary</button>
+
+  <script src="script.js"></script>
+</body>
+</html>

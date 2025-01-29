@@ -6,9 +6,9 @@ export default async function handler(req, res) {
     return res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 
-  const { imageUrls } = req.body;
-  if (!imageUrls || !Array.isArray(imageUrls) || imageUrls.length === 0) {
-    return res.status(400).json({ error: 'imageUrls is required and should be a non-empty array.' });
+  const { words } = req.body;
+  if (!words || !Array.isArray(words) || words.length === 0) {
+    return res.status(400).json({ error: 'words is required and should be a non-empty array.' });
   }
 
   if (!process.env.OPENAI_API_KEY) {
@@ -17,28 +17,33 @@ export default async function handler(req, res) {
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+  // Construct the system/user messages for Chat Completion
   const messages = [
     {
       role: "user",
-      content: [
-        {
-          type: "text",
-          text: `Extract the requested data from these images and return ONLY pure JSON. Do not include triple backticks or code blocks. Use this JSON structure:
+      content: `
+      Please return ONLY pure JSON (no code blocks).
+      The JSON structure is:
+      {
+        "vocabulary": [
           {
-            "vocabulary": []
+            "english": "",
+            "japanese": "",
+            "englishExample": "",
+            "japaneseExample": ""
           }
-          Follow these instructions:
+        ]
+      }
 
-          1. For images of whiteboards and worksheets, etc.:
-             - Analyze the content and extract vocabulary items, and add them to the "vocabulary" array.
+      For each of these words, create an object with:
+      - "english": the word or phrase in English,
+      - "japanese": the Japanese translation of that word or phrase,
+      - "englishExample": an example sentence in English using that word or phrase,
+      - "japaneseExample": a Japanese translation of that example sentence.
 
-          Images:`
-        },
-        ...imageUrls.map(url => ({
-          type: "image_url",
-          image_url: { url }
-        }))
-      ]
+      The words:
+      ${words.join(", ")}
+      `
     }
   ];
 
@@ -50,7 +55,6 @@ export default async function handler(req, res) {
 
     const content = completion.choices[0].message.content;
 
-    // Try to parse the content as JSON
     let data;
     try {
       data = JSON.parse(content);
@@ -59,8 +63,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Model did not return valid JSON.' });
     }
 
-    return res.status(200).json({ processedData: data });
-
+    return res.status(200).json({ processedList: data.vocabulary });
   } catch (error) {
     console.error('Error calling OpenAI API:', error);
     return res.status(500).json({ error: 'Internal Server Error' });

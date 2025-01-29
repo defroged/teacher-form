@@ -95,11 +95,11 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     // Reference to the chosen class doc in "Academic-classes" collection
     const classDocRef = db.collection('Academic-classes').doc(selectedClass);
 
-    // Subcollection "Submissions" for each new set of vocabulary
-    const newCollectionRef = classDocRef.collection(Date.now().toString());
+    // Subcollection "Submissions"
+    const submissionsRef = classDocRef.collection('Submissions');
 
-    // Create a new document inside the subcollection
-    await newCollectionRef.add({
+    // Create a new document inside the "Submissions" subcollection
+    await submissionsRef.add({
       Vocabulary: selectedVocabulary,
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });

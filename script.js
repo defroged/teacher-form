@@ -141,7 +141,7 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     const day = String(now.getDate()).padStart(2, '0');
     const hours = String(now.getHours()).padStart(2, '0');
     const minutes = String(now.getMinutes()).padStart(2, '0');
-    const docId = `${year}-${month}-${day}-${hours}:${minutes}`;
+    const docId = `${year}-${month}-${day}-${hours}-${minutes}`;
 
     await submissionsRef.doc(docId).set({
       Vocabulary: processedList,

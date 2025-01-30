@@ -7,7 +7,7 @@ if (!admin.apps.length) {
     credential: admin.credential.cert(
       JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
     ),
-    storageBucket: "bs-class-database.appspot.com"
+    storageBucket: "bs-class-database.firebasestorage.app"
   });
 }
 

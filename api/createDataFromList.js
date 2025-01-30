@@ -114,7 +114,7 @@ export default async function handler(req, res) {
         const audioBuffer = await audioResponse.arrayBuffer();
         const buffer = Buffer.from(audioBuffer);
 
-        // Create a unique file name, e.g. "tts_audio/scaffolding-1687999999999.mp3"
+        // Create a unique file name
         const timestamp = Date.now();
         const fileName = `flashcards_audio/${vocabItem.english}-${timestamp}.mp3`;
 

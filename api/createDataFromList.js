@@ -1,4 +1,20 @@
 import OpenAI from "openai";
+import admin from "firebase-admin";
+import fetch from "node-fetch"; // If you are using Node 18+ on Vercel, you can remove this import
+
+// Only initialize Admin if not already
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(
+      JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
+    ),
+    // Provide your default bucket name if needed:
+    // storageBucket: "bs-class-database.appspot.com"
+  });
+}
+
+// Grab a reference to the default bucket
+const bucket = admin.storage().bucket();
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -36,9 +52,9 @@ export default async function handler(req, res) {
 
       For each of these words, create an object with:
       - "english": the word or phrase in English,
-      - "japanese": the Japanese translation of that word or phrase,
-      - "englishExample": an example sentence (in simple English aimed at junior high school ESL students) using that word or phrase, 
-      - "japaneseExample": a Japanese translation of that example sentence.
+      - "japanese": the Japanese translation,
+      - "englishExample": a simple English example sentence,
+      - "japaneseExample": a Japanese translation of that sentence.
 
       The words:
       ${words.join(", ")}
@@ -62,6 +78,74 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Model did not return valid JSON.' });
     }
 
+    // ========================
+    // NEW: ElevenLabs setup
+    // ========================
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'nPczCjzI2devNBz1zQrb';
+    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+
+    // For each vocabulary item, request TTS audio from ElevenLabs,
+    // then store it in Firebase Storage, and attach the download URL.
+    for (const vocabItem of data.vocabulary) {
+      try {
+        const requestBody = {
+          text: vocabItem.english,
+          model_id: 'eleven_multilingual_v2',
+          voice_settings: {
+            stability: 0.50,
+            similarity_boost: 0.75,
+            speaker_boost: true
+          }
+        };
+
+        const audioResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!audioResponse.ok) {
+          throw new Error(`ElevenLabs TTS request failed with status: ${audioResponse.status}`);
+        }
+
+        // Read the returned audio as an ArrayBuffer
+        const audioBuffer = await audioResponse.arrayBuffer();
+        const buffer = Buffer.from(audioBuffer);
+
+        // Create a unique file name, e.g. "tts_audio/scaffolding-1687999999999.mp3"
+        const timestamp = Date.now();
+        const fileName = `tts_audio/${vocabItem.english}-${timestamp}.mp3`;
+
+        // Save to Firebase Storage
+        const file = bucket.file(fileName);
+        await file.save(buffer, {
+          contentType: 'audio/mpeg',
+          public: false // or true if you want the file publicly readable
+        });
+
+        // Optionally set file metadata (e.g. make it public or add custom metadata)
+        // await file.setMetadata({ ... });
+
+        // Generate a signed URL so you can read the file
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: '03-09-2491' // far-future expiration
+        });
+
+        // Attach this URL to the item
+        vocabItem.enAudio = signedUrl;
+
+      } catch (error) {
+        console.error('Error fetching ElevenLabs TTS for word:', vocabItem.english, error);
+        vocabItem.enAudio = "";  // fallback or empty
+      }
+    }
+
+    // Once all items have enAudio, return them
     return res.status(200).json({ processedList: data.vocabulary });
   } catch (error) {
     console.error('Error calling OpenAI API:', error);

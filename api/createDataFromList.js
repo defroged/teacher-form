@@ -80,7 +80,7 @@ export default async function handler(req, res) {
     // NEW: ElevenLabs setup
     // ========================
     const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'nPczCjzI2devNBz1zQrb';
+    const voiceId = process.env.ELEVENLABS_VOICE_ID || 's0XGIcqmceN2l7kjsqoZ';
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
     // For each vocabulary item, request TTS audio from ElevenLabs,

@@ -1,6 +1,5 @@
 import OpenAI from "openai";
 import admin from "firebase-admin";
-import fetch from "node-fetch"; // If you are using Node 18+ on Vercel, you can remove this import
 
 // Only initialize Admin if not already
 if (!admin.apps.length) {
@@ -8,8 +7,7 @@ if (!admin.apps.length) {
     credential: admin.credential.cert(
       JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
     ),
-    // Provide your default bucket name if needed:
-    // storageBucket: "bs-class-database.appspot.com"
+    storageBucket: "bs-class-database.appspot.com"
   });
 }
 
@@ -118,7 +116,7 @@ export default async function handler(req, res) {
 
         // Create a unique file name, e.g. "tts_audio/scaffolding-1687999999999.mp3"
         const timestamp = Date.now();
-        const fileName = `tts_audio/${vocabItem.english}-${timestamp}.mp3`;
+        const fileName = `flashcards_audio/${vocabItem.english}-${timestamp}.mp3`;
 
         // Save to Firebase Storage
         const file = bucket.file(fileName);

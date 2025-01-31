@@ -76,9 +76,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Model did not return valid JSON.' });
     }
 
-    // ========================
-    // NEW: ElevenLabs setup
-    // ========================
+    // ElevenLabs setup
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID || 's0XGIcqmceN2l7kjsqoZ';
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;

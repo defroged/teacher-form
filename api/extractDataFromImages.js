@@ -43,10 +43,13 @@ export default async function handler(req, res) {
 
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages
-    });
+    console.log("Sending messages to OpenAI API:", JSON.stringify(messages, null, 2));
+
+const completion = await openai.chat.completions.create({
+  model: "gpt-4o",
+  messages
+});
+
 
     const content = completion.choices[0].message.content;
 

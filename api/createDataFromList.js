@@ -86,13 +86,14 @@ export default async function handler(req, res) {
     for (const vocabItem of data.vocabulary) {
       try {
         const requestBody = {
-          text: vocabItem.english,
-          model_id: 'eleven_flash_v2_5',
-          voice_settings: {
-            stability: 0.75,
-            similarity_boost: 0.75,
-          }
-        };
+  text: vocabItem.english + ".",
+  model_id: 'eleven_flash_v2_5',
+  voice_settings: {
+    stability: 0.75,
+    similarity_boost: 0.75,
+  }
+};
+
 
         const audioResponse = await fetch(url, {
           method: 'POST',

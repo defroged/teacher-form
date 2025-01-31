@@ -89,7 +89,7 @@ export default async function handler(req, res) {
           text: vocabItem.english,
           model_id: 'eleven_multilingual_v2',
           voice_settings: {
-            stability: 0.50,
+            stability: 0.75,
             similarity_boost: 0.75,
             speaker_boost: true
           }

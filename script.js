@@ -50,19 +50,40 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
   // Show the upload loader
   document.getElementById('uploadLoader').style.display = 'block';
 
-  const imageUrls = [];
-  for (let i = 0; i < fileInput.files.length; i++) {
-    const file = fileInput.files[i];
-    const reader = new FileReader();
+  const uploadToCloudinary = async (file) => {
+  const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dzo0vucxp/image/upload";
+  const uploadPreset = "Flashcards_Data"; // Make sure this is an unsigned preset
 
-    const readPromise = new Promise((resolve, reject) => {
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = (err) => reject(err);
-    });
-    reader.readAsDataURL(file);
-    const result = await readPromise;
-    imageUrls.push(result);
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+
+  const response = await fetch(cloudinaryUrl, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error("Cloudinary upload failed");
   }
+
+  const data = await response.json();
+  return data.secure_url; // Get the hosted image URL
+};
+
+const imageUrls = [];
+for (let i = 0; i < fileInput.files.length; i++) {
+  const file = fileInput.files[i];
+  try {
+    const imageUrl = await uploadToCloudinary(file);
+    imageUrls.push(imageUrl);
+  } catch (error) {
+    console.error("Image upload failed:", error);
+    alert("Failed to upload images. Please try again.");
+    return;
+  }
+}
+
 
   try {
     const response = await fetch('/api/extractDataFromImages', {

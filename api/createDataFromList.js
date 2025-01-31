@@ -87,11 +87,10 @@ export default async function handler(req, res) {
       try {
         const requestBody = {
           text: vocabItem.english,
-          model_id: 'eleven_multilingual_v2',
+          model_id: 'eleven_flash_v2.5',
           voice_settings: {
             stability: 0.75,
             similarity_boost: 0.75,
-            speaker_boost: true
           }
         };
 

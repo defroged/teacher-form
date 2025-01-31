@@ -20,26 +20,28 @@ export default async function handler(req, res) {
   const messages = [
   {
     role: "user",
-    content: {
-      type: "text",
-      text: `Extract the requested data from these images and return ONLY pure JSON. Do not include triple backticks or code blocks. Use this JSON structure:
+    content: [
       {
-        "vocabulary": []
-      }
-      Follow these instructions:
+        type: "text",
+        text: `Extract the requested vocabulary from these images and return ONLY pure JSON. Do not include triple backticks or code blocks. Use this JSON structure:
+        {
+          "vocabulary": []
+        }
+        Follow these instructions:
 
-      1. For images of whiteboards and worksheets, etc.:
-         - Analyze the content and extract vocabulary items, and add them to the "vocabulary" array.`
-    }
-  },
-  ...imageUrls.map(url => ({
-    role: "user",
-    content: {
-      type: "image_url",
-      image_url: { url }
-    }
-  }))
+        1. For images of whiteboards and worksheets:
+           - Analyze the content and extract vocabulary items, and add them to the "vocabulary" array.
+
+        Images:`
+      },
+      ...imageUrls.map(url => ({
+        type: "image_url",
+        image_url: { url }
+      }))
+    ]
+  }
 ];
+
 
 
   try {

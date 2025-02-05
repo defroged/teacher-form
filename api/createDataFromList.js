@@ -81,7 +81,7 @@ export default async function handler(req, res) {
     const voiceId = process.env.ELEVENLABS_VOICE_ID || 's0XGIcqmceN2l7kjsqoZ';
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
-    import { default as pLimit } from 'p-limit';
+    import pLimit from 'p-limit';
 
 // Create a concurrency limiter with a limit of 10.
 const limit = pLimit(10);

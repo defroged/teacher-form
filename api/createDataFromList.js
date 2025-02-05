@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import admin from "firebase-admin";
+import pLimit from 'p-limit';
 
 // Only initialize Admin if not already
 if (!admin.apps.length) {
@@ -81,7 +82,7 @@ export default async function handler(req, res) {
     const voiceId = process.env.ELEVENLABS_VOICE_ID || 's0XGIcqmceN2l7kjsqoZ';
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
-    import pLimit from 'p-limit';
+
 
 // Create a concurrency limiter with a limit of 10.
 const limit = pLimit(10);

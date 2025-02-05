@@ -85,7 +85,7 @@ export default async function handler(req, res) {
 
 
 // Create a concurrency limiter with a limit of 10.
-const limit = pLimit(10);
+const limit = pLimit(2);
 
 await Promise.all(
   data.vocabulary.map((vocabItem) =>

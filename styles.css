@@ -105,3 +105,9 @@ body, button, input, select {
   50% { opacity: 0.5; }
   100% { opacity: 1; }
 }
+
+#submitLoader {
+  margin-top: 10px;
+}
+
+

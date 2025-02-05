@@ -81,62 +81,69 @@ export default async function handler(req, res) {
     const voiceId = process.env.ELEVENLABS_VOICE_ID || 's0XGIcqmceN2l7kjsqoZ';
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
-    // Process all vocabulary items concurrently
+    import pLimit from 'p-limit';
+
+// Create a concurrency limiter with a limit of 10.
+const limit = pLimit(10);
+
 await Promise.all(
-  data.vocabulary.map(async (vocabItem) => {
-    try {
-      const requestBody = {
-        text: vocabItem.english + ".",
-        model_id: 'eleven_flash_v2_5',
-        voice_settings: {
-          stability: 0.75,
-          similarity_boost: 0.75,
+  data.vocabulary.map((vocabItem) =>
+    limit(async () => {
+      try {
+        const requestBody = {
+          text: vocabItem.english + ".",
+          model_id: 'eleven_flash_v2_5',
+          voice_settings: {
+            stability: 0.75,
+            similarity_boost: 0.75,
+          }
+        };
+
+        const audioResponse = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (!audioResponse.ok) {
+          throw new Error(`ElevenLabs TTS request failed with status: ${audioResponse.status}`);
         }
-      };
 
-      const audioResponse = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'xi-api-key': apiKey,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
+        // Read the returned audio as an ArrayBuffer
+        const audioBuffer = await audioResponse.arrayBuffer();
+        const buffer = Buffer.from(audioBuffer);
 
-      if (!audioResponse.ok) {
-        throw new Error(`ElevenLabs TTS request failed with status: ${audioResponse.status}`);
+        // Create a unique file name
+        const timestamp = Date.now();
+        const fileName = `flashcards_audio/${vocabItem.english}-${timestamp}.mp3`;
+
+        // Save to Firebase Storage
+        const file = bucket.file(fileName);
+        await file.save(buffer, {
+          contentType: 'audio/mpeg',
+          public: false
+        });
+
+        // Generate a signed URL so you can read the file
+        const [signedUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: '03-09-2491'
+        });
+
+        // Attach this URL to the item
+        vocabItem.enAudio = signedUrl;
+
+      } catch (error) {
+        console.error('Error fetching ElevenLabs TTS for word:', vocabItem.english, error);
+        vocabItem.enAudio = "";
       }
-
-      // Read the returned audio as an ArrayBuffer
-      const audioBuffer = await audioResponse.arrayBuffer();
-      const buffer = Buffer.from(audioBuffer);
-
-      // Create a unique file name
-      const timestamp = Date.now();
-      const fileName = `flashcards_audio/${vocabItem.english}-${timestamp}.mp3`;
-
-      // Save to Firebase Storage
-      const file = bucket.file(fileName);
-      await file.save(buffer, {
-        contentType: 'audio/mpeg',
-        public: false
-      });
-
-      // Generate a signed URL so you can read the file
-      const [signedUrl] = await file.getSignedUrl({
-        action: 'read',
-        expires: '03-09-2491'
-      });
-
-      // Attach this URL to the item
-      vocabItem.enAudio = signedUrl;
-
-    } catch (error) {
-      console.error('Error fetching ElevenLabs TTS for word:', vocabItem.english, error);
-      vocabItem.enAudio = "";
-    }
-  })
+    })
+  )
 );
+
 
 
     // Once all items have enAudio, return them

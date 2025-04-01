@@ -321,19 +321,23 @@ document.querySelector('.container').appendChild(urlContainer);
  * You must implement this as needed. Maybe you have them stored in Firestore
  * or in a config object in your code.
  */
+/**
+ * Example placeholder function to fetch webhooks for the chosen class.
+ * You must implement this as needed. Maybe you have them stored in Firestore
+ * or in a config object in your code.
+ */
 async function getWebhooksForClass(className) {
-  // For example, you might have them in a Firestore collection:
-  // const snapshot = await db.collection('DiscordWebhooks').doc(className).get();
-  // if (snapshot.exists) {
-  //   return snapshot.data().webhooksArray; // or however you store it
-  // }
-  // return [];
-
-  // For now, let's just return a dummy array:
-  return [
-    // We might store objects like:
-    // { id: 'channelA', url: 'https://discord.com/api/webhooks/XXXX/XXXX' }
-  ];
+  try {
+    const docRef = await db.collection('DiscordWebhooks').doc(className).get();
+    if (!docRef.exists) {
+      return [];
+    }
+    const data = docRef.data();
+    return data.webhookURLs || [];
+  } catch (err) {
+    console.error('Error fetching webhooks:', err);
+    return [];
+  }
 }
 
   } catch (err) {

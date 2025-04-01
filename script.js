@@ -180,7 +180,6 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     document.getElementById('addWordBtn').style.display = 'none';
     document.getElementById('additionalWord').style.display = 'none';
     document.getElementById('submitVocabulary').style.display = 'none';
-    document.getElementById('form-card').style.display = 'none';
 
     // Show the generated URL and the placeholder button
     const urlContainer = document.createElement('div');

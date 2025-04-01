@@ -9,7 +9,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>Vocabulary Extractor</h1>
+    <h1>FLASHCARDS GENERATOR</h1>
     
     <div id="uploadLoader" class="loader">
   Processing images...
@@ -18,15 +18,11 @@
     <form id="uploadForm" class="form-card">
       <div class="form-group">
         <label for="classDropdown">Select Class:</label>
-        <select id="classDropdown" class="form-control">
 		
-          <option value="Apricot">Apricot</option>
-          <option value="Strawberry">Strawberry</option>
-		  <option value="Lion">Lion</option>
-		  <option value="Adults-Beginners">Adults-Beginners</option>
-		  <option value="Adults-Intermediate">Adults-Intermediate</option>
-		  
+        <select id="classDropdown" class="form-control">
+		<!-- Options will be dynamically loaded from Firestore -->
         </select>
+		
       </div>
       <div class="form-group">
         <label for="imageFiles">Choose images:</label>

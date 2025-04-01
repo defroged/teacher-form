@@ -28,7 +28,7 @@ function renderVocabularyList() {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.value = word;
-    checkbox.checked = true; 
+    checkbox.checked = true;
 
     label.appendChild(checkbox);
     label.appendChild(document.createTextNode(word));
@@ -51,39 +51,38 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
   document.getElementById('uploadLoader').style.display = 'block';
 
   const uploadToCloudinary = async (file) => {
-  const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dzo0vucxp/image/upload";
-  const uploadPreset = "Flashcards_Data"; // Make sure this is an unsigned preset
+    const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dzo0vucxp/image/upload";
+    const uploadPreset = "Flashcards_Data"; // Make sure this is an unsigned preset
 
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
 
-  const response = await fetch(cloudinaryUrl, {
-    method: "POST",
-    body: formData,
-  });
+    const response = await fetch(cloudinaryUrl, {
+      method: "POST",
+      body: formData,
+    });
 
-  if (!response.ok) {
-    throw new Error("Cloudinary upload failed");
+    if (!response.ok) {
+      throw new Error("Cloudinary upload failed");
+    }
+
+    const data = await response.json();
+    return data.secure_url; // Get the hosted image URL
+  };
+
+  const imageUrls = [];
+  for (let i = 0; i < fileInput.files.length; i++) {
+    const file = fileInput.files[i];
+    try {
+      const imageUrl = await uploadToCloudinary(file);
+      imageUrls.push(imageUrl);
+    } catch (error) {
+      console.error("Image upload failed:", error);
+      alert("Failed to upload images. Please try again.");
+      return;
+    }
   }
-
-  const data = await response.json();
-  return data.secure_url; // Get the hosted image URL
-};
-
-const imageUrls = [];
-for (let i = 0; i < fileInput.files.length; i++) {
-  const file = fileInput.files[i];
-  try {
-    const imageUrl = await uploadToCloudinary(file);
-    imageUrls.push(imageUrl);
-  } catch (error) {
-    console.error("Image upload failed:", error);
-    alert("Failed to upload images. Please try again.");
-    return;
-  }
-}
-
 
   try {
     const response = await fetch('/api/extractDataFromImages', {
@@ -171,7 +170,7 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
 
     // Hide the submission loader
     document.getElementById('submitLoader').style.display = 'none';
-    
+
     // Construct the dynamic URL
     const dynamicURL = `https://flashcards-opal-seven.vercel.app/${selectedClass}/${docId}`;
 
@@ -181,6 +180,7 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     document.getElementById('addWordBtn').style.display = 'none';
     document.getElementById('additionalWord').style.display = 'none';
     document.getElementById('submitVocabulary').style.display = 'none';
+    document.getElementById('form-card').style.display = 'none';
 
     // Show the generated URL and the placeholder button
     const urlContainer = document.createElement('div');
@@ -197,3 +197,32 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     document.getElementById('submitLoader').style.display = 'none';
   }
 });
+
+/* 
+  ---------------------------------------------
+  NEW FUNCTION TO FETCH CLASS NAMES FROM FIRESTORE 
+  AND POPULATE THE DROPDOWN
+  ---------------------------------------------
+*/
+
+async function populateClassDropdown() {
+  const classDropdown = document.getElementById('classDropdown');
+  classDropdown.innerHTML = ''; // Clear any existing options
+
+  try {
+    const snapshot = await db.collection('Academic-classes').get();
+    snapshot.forEach((doc) => {
+      // doc.id will be the class name if you're using the doc ID as the class name
+      const option = document.createElement('option');
+      option.value = doc.id;
+      option.textContent = doc.id;
+      classDropdown.appendChild(option);
+    });
+  } catch (error) {
+    console.error("Error fetching classes from Firestore:", error);
+    alert("Error fetching classes. Check console for details.");
+  }
+}
+
+// Call the function to populate the dropdown once everything is set up
+populateClassDropdown();

@@ -145,8 +145,6 @@ await Promise.all(
   )
 );
 
-
-
     // Once all items have enAudio, return them
     return res.status(200).json({ processedList: data.vocabulary });
   } catch (error) {

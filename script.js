@@ -169,10 +169,26 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    // Hide the submission loader before showing success alert
+    // Hide the submission loader
     document.getElementById('submitLoader').style.display = 'none';
+    
+    // Construct the dynamic URL
+    const dynamicURL = `https://flashcards-opal-seven.vercel.app/${selectedClass}/${docId}`;
 
-    alert('Vocabulary successfully stored in Firestore!');
+    // Hide all the existing form elements
+    document.getElementById('uploadForm').style.display = 'none';
+    document.getElementById('vocabularyList').style.display = 'none';
+    document.getElementById('addWordBtn').style.display = 'none';
+    document.getElementById('additionalWord').style.display = 'none';
+    document.getElementById('submitVocabulary').style.display = 'none';
+
+    // Show the generated URL and the placeholder button
+    const urlContainer = document.createElement('div');
+    urlContainer.innerHTML = `
+      <p>${dynamicURL}</p>
+      <button id="bookingButton">予約をする</button>
+    `;
+    document.querySelector('.container').appendChild(urlContainer);
   } catch (err) {
     console.error('Error storing vocabulary:', err);
     alert('Error storing vocabulary: ' + err.message);

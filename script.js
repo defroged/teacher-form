@@ -175,11 +175,11 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     const dynamicURL = `https://flashcards-opal-seven.vercel.app/${selectedClass}/${docId}`;
 
     // Hide all the existing form elements
-    document.getElementById('uploadForm').style.display = 'none';
-    document.getElementById('vocabularyList').style.display = 'none';
-    document.getElementById('addWordBtn').style.display = 'none';
-    document.getElementById('additionalWord').style.display = 'none';
-    document.getElementById('submitVocabulary').style.display = 'none';
+document.getElementById('uploadForm').style.display = 'none';
+document.getElementById('vocabularyList').style.display = 'none';
+document.getElementById('submitVocabulary').style.display = 'none';
+document.getElementById('additionalWordContainer').style.display = 'none';
+
 
     // Show the generated URL and the placeholder button
     const urlContainer = document.createElement('div');

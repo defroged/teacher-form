@@ -181,13 +181,161 @@ document.getElementById('submitVocabulary').style.display = 'none';
 document.getElementById('additionalWordContainer').style.display = 'none';
 
 
-    // Show the generated URL and the placeholder button
-    const urlContainer = document.createElement('div');
-    urlContainer.innerHTML = `
-      <p>${dynamicURL}</p>
-      <button id="bookingButton">予約をする</button>
-    `;
-    document.querySelector('.container').appendChild(urlContainer);
+    // Show the generated URL and build the calendar UI
+const urlContainer = document.createElement('div');
+urlContainer.innerHTML = `<p>${dynamicURL}</p>`;
+
+// Create a container for the one-week calendar checkboxes
+const calendarContainer = document.createElement('div');
+
+// We will determine the current date/time in Japan
+// Create an array for day names in Japanese
+const dayNamesJa = ['日', '月', '火', '水', '木', '金', '土'];
+
+// Helper function to get a Date object in Japan for a given offset (0 for today, 1 for tomorrow, etc.)
+function getJSTDate(offsetDays) {
+  const now = new Date();
+  // Convert from local time to Japan time by adding/subtracting the difference in minutes
+  // Japan is UTC+9, but for simplicity, let's just create a new date and then shift it
+  // so that it shows local JST date. This is a simplistic approach but works for most cases.
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  // 9 hours in milliseconds = 9 * 60 * 60000 = 32400000
+  const jstTime = utc + (9 * 60 * 60000);
+  const jstDate = new Date(jstTime);
+  
+  // Now add offsetDays in days:
+  jstDate.setDate(jstDate.getDate() + offsetDays);
+  return jstDate;
+}
+
+// Create checkboxes for 7 days starting from the current day
+// But we only allow selection of the future 6 days, so the user can't select index 0 if you want them to skip "today"
+for (let i = 0; i < 7; i++) {
+  const dateObj = getJSTDate(i);
+  const day = dateObj.getDate();
+  const month = dateObj.getMonth() + 1;
+  const dayOfWeek = dateObj.getDay(); // 0=Sun,1=Mon,...6=Sat
+
+  const label = document.createElement('label');
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.value = i; // store the offset
+  checkbox.disabled = (i === 0); // disable the current day if we don't allow it
+  // If you want to allow the current day, just remove this line:
+  // checkbox.disabled = (i === 0);
+
+  // By default, if i is 1 (tomorrow), 3, or 5 => checked
+  if (i === 1 || i === 3 || i === 5) {
+    checkbox.checked = true;
+  }
+  
+  label.appendChild(checkbox);
+  label.appendChild(document.createTextNode(
+    `${month}/${day} (${dayNamesJa[dayOfWeek]})`
+  ));
+  label.style.display = 'block';
+  
+  calendarContainer.appendChild(label);
+}
+
+// We might add a note about "You can select up to 6 days"
+const note = document.createElement('p');
+note.textContent = '※ 最大 6日まで選択可能（当日を除く）';
+calendarContainer.appendChild(note);
+
+urlContainer.appendChild(calendarContainer);
+
+// Create the booking button
+const bookingBtn = document.createElement('button');
+bookingBtn.id = 'bookingButton';
+bookingBtn.textContent = '予約をする';
+
+// Add click handler for booking
+bookingBtn.addEventListener('click', async () => {
+  // Gather selected days from the checkboxes
+  const checkboxes = calendarContainer.querySelectorAll('input[type="checkbox"]');
+  const selectedOffsets = [];
+  checkboxes.forEach((cb) => {
+    if (cb.checked && !cb.disabled) {
+      selectedOffsets.push(parseInt(cb.value));
+    }
+  });
+
+  if (selectedOffsets.length === 0) {
+    alert('予約日を少なくとも1日選択してください。');
+    return;
+  }
+  if (selectedOffsets.length > 6) {
+    alert('予約日は最大6日までです。');
+    return;
+  }
+
+  // This is where we do the Discord scheduling logic.
+  // You mentioned “send a message to each channel that has the webhook” – 
+  // presumably we have a function that retrieves the relevant webhook(s) for the selected class name:
+  const selectedClass = document.getElementById('classDropdown').value;
+  const webhooksForClass = await getWebhooksForClass(selectedClass);
+  // ^ You need to implement getWebhooksForClass. For example, it could fetch from Firestore or a config list.
+
+  // For each selected offset day, we want to schedule sending the dynamicURL at 17:00 JST
+  // *NOTE*: Actually sending at a future time requires a backend or a CRON job. 
+  // For demonstration, we’ll just do an immediate console log or a fetch to your server to register the schedule.
+
+  try {
+    // Example: making an API call to your server so it can queue the Discord messages
+    const schedulePayload = {
+      dynamicURL,
+      selectedOffsets,
+      timezone: 'Asia/Tokyo',
+      sendHour: 17,
+      webhooks: webhooksForClass,
+      className: selectedClass
+    };
+
+    // Adjust this path /api/scheduleDiscord or similar to your real endpoint
+    const scheduleResponse = await fetch('/api/scheduleDiscord', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(schedulePayload),
+    });
+
+    if (!scheduleResponse.ok) {
+      throw new Error('Failed to schedule Discord messages');
+    }
+
+    alert('予約が完了しました！');
+  } catch (err) {
+    console.error('Error scheduling Discord messages:', err);
+    alert('エラーが発生しました。詳細はコンソールを確認してください。');
+  }
+});
+
+// Append the booking button
+urlContainer.appendChild(bookingBtn);
+
+// Finally, append the entire container to the .container
+document.querySelector('.container').appendChild(urlContainer);
+
+/**
+ * Example placeholder function to fetch webhooks for the chosen class.
+ * You must implement this as needed. Maybe you have them stored in Firestore
+ * or in a config object in your code.
+ */
+async function getWebhooksForClass(className) {
+  // For example, you might have them in a Firestore collection:
+  // const snapshot = await db.collection('DiscordWebhooks').doc(className).get();
+  // if (snapshot.exists) {
+  //   return snapshot.data().webhooksArray; // or however you store it
+  // }
+  // return [];
+
+  // For now, let's just return a dummy array:
+  return [
+    // We might store objects like:
+    // { id: 'channelA', url: 'https://discord.com/api/webhooks/XXXX/XXXX' }
+  ];
+}
+
   } catch (err) {
     console.error('Error storing vocabulary:', err);
     alert('Error storing vocabulary: ' + err.message);

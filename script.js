@@ -252,7 +252,6 @@ bookingBtn.textContent = '予約をする';
 
 // Add click handler for booking
 bookingBtn.addEventListener('click', async () => {
-  // Gather selected days from the checkboxes
   const checkboxes = calendarContainer.querySelectorAll('input[type="checkbox"]');
   const selectedOffsets = [];
   checkboxes.forEach((cb) => {
@@ -270,45 +269,48 @@ bookingBtn.addEventListener('click', async () => {
     return;
   }
 
-  // This is where we do the Discord scheduling logic.
-  // You mentioned “send a message to each channel that has the webhook” – 
-  // presumably we have a function that retrieves the relevant webhook(s) for the selected class name:
   const selectedClass = document.getElementById('classDropdown').value;
   const webhooksForClass = await getWebhooksForClass(selectedClass);
-  // ^ You need to implement getWebhooksForClass. For example, it could fetch from Firestore or a config list.
 
-  // For each selected offset day, we want to schedule sending the dynamicURL at 17:00 JST
-  // *NOTE*: Actually sending at a future time requires a backend or a CRON job. 
-  // For demonstration, we’ll just do an immediate console log or a fetch to your server to register the schedule.
+  // We'll store each chosen day as a separate Firestore document, or store them all in one doc.
+  // The simplest is one doc per user "booking".
+  // We'll build an array of date/times in UTC, representing 17:00 JST on each chosen day.
+  const now = new Date();
+  // Convert local time to UTC if you want, or directly calculate JST.
+  
+  const tasks = selectedOffsets.map(offset => {
+    // For each offset, let's find 17:00 on that day in JST, then convert to UTC in ms.
+    
+    const jstDate = new Date(now.getTime() + (9 * 60 * 60000)); // Now in JST (roughly)
+    jstDate.setDate(jstDate.getDate() + offset);
+    jstDate.setHours(17, 0, 0, 0); // 17:00:00
+    
+    // Convert that JST date back to a UTC-based timestamp in ms
+    const utcTime = jstDate.getTime() - (9 * 60 * 60000);
 
-  try {
-    // Example: making an API call to your server so it can queue the Discord messages
-    const schedulePayload = {
+    return {
       dynamicURL,
-      selectedOffsets,
-      timezone: 'Asia/Tokyo',
-      sendHour: 17,
       webhooks: webhooksForClass,
-      className: selectedClass
+      scheduledTime: utcTime,   // storing as ms from epoch
+      status: 'not_sent'
     };
+  });
 
-    // Adjust this path /api/scheduleDiscord or similar to your real endpoint
-    const scheduleResponse = await fetch('/api/scheduleDiscord', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(schedulePayload),
-    });
-
-    if (!scheduleResponse.ok) {
-      throw new Error('Failed to schedule Discord messages');
+  // Now we store these tasks in Firestore. For example, each one as a separate doc:
+  try {
+    // We'll create a new subcollection or top-level collection, e.g. "ScheduledMessages".
+    for (const task of tasks) {
+      const docRef = await db.collection('ScheduledMessages').add(task);
+      console.log('Created scheduled task:', docRef.id);
     }
 
-    alert('予約が完了しました！');
+    alert('予約が完了しました！(Scheduled successfully)');
   } catch (err) {
-    console.error('Error scheduling Discord messages:', err);
-    alert('エラーが発生しました。詳細はコンソールを確認してください。');
+    console.error('Error scheduling tasks:', err);
+    alert('エラーが発生しました。コンソールで詳細を確認してください。');
   }
 });
+
 
 // Append the booking button
 urlContainer.appendChild(bookingBtn);

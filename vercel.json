@@ -1,0 +1,14 @@
+
+{
+  "functions": {
+    "api/scheduledSendMessages.js": {
+      "runtime": "nodejs16.x"
+    }
+  },
+  "cron": [
+    {
+      "path": "api/scheduledSendMessages",
+      "schedule": "0 8 * * *"
+    }
+  ]
+}

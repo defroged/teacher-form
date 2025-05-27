@@ -60,9 +60,11 @@ export default async function handler(req, res) {
           continue;
         }
 
-        const payload = {
-          content: `Hello! Here is your flashcards link: ${task.dynamicURL}`
-        };
+const payload = {
+  content: `今週のフラッシュカードを練習しましょう。\n${task.dynamicURL}\nすべての単語を英語で言えるようになったら、「100%」の画面のスクリーンショットをこちらで送ってください😊`
+};
+
+
 
         try {
           const response = await fetch(hookUrl, { // Use hookUrl directly

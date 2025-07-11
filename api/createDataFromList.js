@@ -93,9 +93,9 @@ await Promise.all(
       try {
         const requestBody = {
           text: vocabItem.english + ".",
-          model_id: 'eleven_flash_v2_5',
+          model_id: 'eleven_flash_v2_5', // change to 'eleven_v3' when api is available
           voice_settings: {
-            stability: 0.75,
+            stability: 0.9,
             similarity_boost: 0.75,
           }
         };

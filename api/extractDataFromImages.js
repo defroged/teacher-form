@@ -23,7 +23,9 @@ export default async function handler(req, res) {
     content: [
       {
         type: "text",
-        text: `Extract the requested vocabulary, phrases and sentences from these images and return ONLY pure JSON. Do not include triple backticks or code blocks. Use this JSON structure:
+        text: `Extract the requested vocabulary, phrases and sentences from these images and return ONLY pure JSON. Do not include triple backticks or code blocks. 
+		Do not capitalize the first letters, unless it's a sentence, a proper noun (names of people/places or things), days/months/holidays, titles (Example: Doctor Smith, Professor Tanaka.).
+		Use this JSON structure:
         {
           "vocabulary": []
         }

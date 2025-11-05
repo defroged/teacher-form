@@ -23,14 +23,12 @@ export default async function handler(req, res) {
     content: [
       {
         type: "text",
-        text: `Extract the requested vocabulary from these images and return ONLY pure JSON. Do not include triple backticks or code blocks. Use this JSON structure:
+        text: `Extract the requested vocabulary, phrases and sentences from these images and return ONLY pure JSON. Do not include triple backticks or code blocks. Use this JSON structure:
         {
           "vocabulary": []
         }
-        Follow these instructions:
-
-        1. For images of whiteboards and worksheets:
-           - Analyze the content and extract vocabulary items, and add them to the "vocabulary" array.
+        For images of whiteboards and worksheets:
+           - Analyze the content and extract vocabulary, phrases and sentences items, and add them to the "vocabulary" array.
 
         Images:`
       },

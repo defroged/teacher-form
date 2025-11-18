@@ -79,7 +79,7 @@ export default async function handler(req, res) {
 
     // ElevenLabs setup
     const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || 's0XGIcqmceN2l7kjsqoZ';
+    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'EkK5I93UQWFDigLMpZcX';
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
 
 
@@ -90,9 +90,22 @@ const limit = pLimit(2);
 await Promise.all(
   data.vocabulary.map((vocabItem) =>
     limit(async () => {
-      try {
+try {
+        // Logic: Capitalize first letter and ensure it ends with a period
+        let textToSpeechInput = vocabItem.english || "";
+
+        if (textToSpeechInput.length > 0) {
+            // Capitalize the first letter
+            textToSpeechInput = textToSpeechInput.charAt(0).toUpperCase() + textToSpeechInput.slice(1);
+            
+            // Add a period if it doesn't end with one
+            if (!textToSpeechInput.endsWith('.')) {
+                textToSpeechInput += '.';
+            }
+        }
+
         const requestBody = {
-          text: vocabItem.english + ".",
+          text: textToSpeechInput,
           model_id: 'eleven_v3', 
           voice_settings: {
             stability: 1,

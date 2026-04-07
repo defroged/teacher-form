@@ -1,3 +1,5 @@
+// /flashcards/script.js
+
 const firebaseConfig = {
   apiKey: "AIzaSyCTdo6AfCDj3yVCnndBCIOrLRm7oOaDFW8",
   authDomain: "bs-class-database.firebaseapp.com",
@@ -172,7 +174,9 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     document.getElementById('submitLoader').style.display = 'none';
 
     // Construct the dynamic URL
-    const dynamicURL = `https://flashcards-opal-seven.vercel.app/${selectedClass}/${docId}`;
+    const encodedClass = encodeURIComponent(selectedClass);
+	const encodedDocId = encodeURIComponent(docId);
+	const dynamicURL = `https://flashcards-opal-seven.vercel.app/${encodedClass}/${encodedDocId}`;
 
     // Hide all the existing form elements
 document.getElementById('uploadForm').style.display = 'none';
@@ -279,22 +283,25 @@ bookingBtn.addEventListener('click', async () => {
   // Convert local time to UTC if you want, or directly calculate JST.
   
   const tasks = selectedOffsets.map(offset => {
-    // For each offset, let's find 17:00 on that day in JST, then convert to UTC in ms.
-    
-    const jstDate = new Date(now.getTime() + (9 * 60 * 60000)); // Now in JST (roughly)
-    jstDate.setDate(jstDate.getDate() + offset);
-    jstDate.setHours(17, 0, 0, 0); // 17:00:00
-    
-    // Convert that JST date back to a UTC-based timestamp in ms
-    const utcTime = jstDate.getTime() - (9 * 60 * 60000);
+  // For each offset, find 17:00 JST on that selected day,
+  // then convert it to a UTC-based timestamp in milliseconds.
 
-    return {
-      dynamicURL,
-      webhooks: webhooksForClass,
-      scheduledTime: utcTime,   // storing as ms from epoch
-      status: 'not_sent'
-    };
-  });
+  const jstDate = new Date(now.getTime() + (9 * 60 * 60000)); // approximate JST base time
+  jstDate.setDate(jstDate.getDate() + offset);
+  jstDate.setHours(17, 0, 0, 0);
+
+  // Convert JST back to UTC milliseconds for storage
+  const utcTime = jstDate.getTime() - (9 * 60 * 60000);
+
+  return {
+    className: selectedClass,
+    dynamicURL,
+    webhooks: webhooksForClass,
+    scheduledTime: utcTime,
+    status: 'not_sent',
+    createdAt: Date.now()
+  };
+});
 
   // Now we store these tasks in Firestore. For example, each one as a separate doc:
   try {
@@ -379,3 +386,5 @@ async function populateClassDropdown() {
 
 // Call the function to populate the dropdown once everything is set up
 populateClassDropdown();
+
+

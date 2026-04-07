@@ -1,3 +1,5 @@
+// /api/extractDataFromImages.js
+
 import OpenAI from "openai";
 
 export default async function handler(req, res) {
@@ -71,3 +73,6 @@ const completion = await openai.chat.completions.create({
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 }
+
+
+

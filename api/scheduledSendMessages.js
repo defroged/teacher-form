@@ -53,36 +53,53 @@ export default async function handler(req, res) {
 
     // 2. For each task that is due, send the Discord message
     for (const task of tasksToSend) {
-      // task.webhooks is expected to be an array of URL strings
-      for (const hookUrl of task.webhooks) { // Iterate directly over URL strings
-        if (!hookUrl || typeof hookUrl !== 'string') { // Basic validation for the URL string
-          console.warn('Invalid or missing webhook URL:', hookUrl, 'for task ID:', task.id);
-          continue;
-        }
+  const className = task.className || 'UnknownClass';
+  const webhooks = Array.isArray(task.webhooks) ? task.webhooks : [];
 
-const payload = {
-  content: `今週のフラッシュカードを練習しましょう。\n${task.dynamicURL}\nすべての単語を英語で言えるようになったら、「100%」の画面のスクリーンショットをこちらで送ってください😊`
-};
+  if (webhooks.length === 0) {
+    console.warn(`No webhooks found for scheduled task ${task.id} (${className})`);
+    continue;
+  }
 
-
-
-        try {
-          const response = await fetch(hookUrl, { // Use hookUrl directly
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          });
-          if (!response.ok) {
-            console.error(`Discord webhook send error for ${hookUrl}: ${response.status} ${response.statusText}`, await response.text());
-          }
-        } catch (err) {
-          console.error(`Exception sending to Discord webhook ${hookUrl}:`, err);
-        }
-      }
-
-      // 3. Mark the task as 'sent' so we don't send it again
-      await updateDoc(doc(db, 'ScheduledMessages', task.id), { status: 'sent' });
+  for (const hookUrl of webhooks) {
+    if (!hookUrl || typeof hookUrl !== 'string') {
+      console.warn('Invalid or missing webhook URL:', hookUrl, 'for task ID:', task.id, 'class:', className);
+      continue;
     }
+
+    const payload = {
+      content:
+        `今週のフラッシュカードを練習しましょう。\n` +
+        `クラス: ${className}\n` +
+        `${task.dynamicURL}\n` +
+        `すべての単語を英語で言えるようになったら、「100%」の画面のスクリーンショットをこちらで送ってください😊`
+    };
+
+    try {
+      const response = await fetch(hookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        console.error(
+          `Discord webhook send error for ${hookUrl}: ${response.status} ${response.statusText}`,
+          await response.text()
+        );
+      } else {
+        console.log(`Reminder sent for class ${className}: task ${task.id}`);
+      }
+    } catch (err) {
+      console.error(`Exception sending to Discord webhook ${hookUrl} for class ${className}:`, err);
+    }
+  }
+
+  await updateDoc(doc(db, 'ScheduledMessages', task.id), {
+    status: 'sent',
+    sentAt: Date.now()
+  });
+}
 
     return res.status(200).json({ message: 'Cron job executed successfully', tasksSent: tasksToSend.length });
   } catch (error) {
@@ -90,3 +107,5 @@ const payload = {
     return res.status(500).json({ error: error.toString() });
   }
 }
+
+

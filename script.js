@@ -1,5 +1,3 @@
-// /flashcards/script.js
-
 const firebaseConfig = {
   apiKey: "AIzaSyCTdo6AfCDj3yVCnndBCIOrLRm7oOaDFW8",
   authDomain: "bs-class-database.firebaseapp.com",
@@ -9,84 +7,273 @@ const firebaseConfig = {
   appId: "1:577863988524:web:dc28f58ed0350419d62889"
 };
 
-const app = firebase.initializeApp(firebaseConfig);
+firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const storage = firebase.storage();
+
+const JST_OFFSET_MS = 9 * 60 * 60 * 1000;
+const MAX_SCHEDULE_DAYS = 6;
+const DEFAULT_SCHEDULE_MINUTES = 17 * 60;
+const SCHEDULE_START_MINUTES = 9 * 60;
+const SCHEDULE_END_MINUTES = 20 * 60;
+const SCHEDULE_INTERVAL_MINUTES = 30;
+const DAY_NAMES_JA = ['日', '月', '火', '水', '木', '金', '土'];
+const LAST_CLASS_STORAGE_KEY = 'flashcardsTeacherForm.lastClass';
+const CLASS_ALIASES = Object.freeze({
+  'Orion 2': 'Orion'
+});
 
 let globalVocabulary = [];
+let nextVocabularyId = 1;
 
-function renderVocabularyList() {
-  const vocabularyListDiv = document.getElementById('vocabularyList');
-  vocabularyListDiv.innerHTML = '';
+const elements = {
+  creatorFlow: document.getElementById('creatorFlow'),
+  uploadForm: document.getElementById('uploadForm'),
+  classDropdown: document.getElementById('classDropdown'),
+  imageFiles: document.getElementById('imageFiles'),
+  fileSummary: document.getElementById('fileSummary'),
+  vocabularyList: document.getElementById('vocabularyList'),
+  additionalWord: document.getElementById('additionalWord'),
+  addWordBtn: document.getElementById('addWordBtn'),
+  selectionBar: document.getElementById('selectionBar'),
+  selectionSummary: document.getElementById('selectionSummary'),
+  selectAllBtn: document.getElementById('selectAllBtn'),
+  clearSelectionBtn: document.getElementById('clearSelectionBtn'),
+  submitVocabulary: document.getElementById('submitVocabulary'),
+  schedulerSection: document.getElementById('schedulerSection')
+};
 
-  if (globalVocabulary.length === 0) {
-    vocabularyListDiv.textContent = 'No vocabulary found.';
-    document.getElementById('submitVocabulary').style.display = 'none';
-    return;
-  }
-
-  globalVocabulary.forEach((word) => {
-    const label = document.createElement('label');
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.value = word;
-    checkbox.checked = true;
-
-    label.appendChild(checkbox);
-    label.appendChild(document.createTextNode(word));
-    vocabularyListDiv.appendChild(label);
-    vocabularyListDiv.appendChild(document.createElement('br'));
+function showLoading(title, text) {
+  Swal.fire({
+    title,
+    text,
+    allowOutsideClick: false,
+    allowEscapeKey: false,
+    showConfirmButton: false,
+    didOpen: () => Swal.showLoading()
   });
-
-  document.getElementById('submitVocabulary').style.display = 'inline-block';
 }
 
-document.getElementById('uploadForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const fileInput = document.getElementById('imageFiles');
-  if (!fileInput.files.length) {
-    alert('Please select at least one image!');
+function updateLoading(title, text) {
+  Swal.update({ title, text });
+}
+
+function closeLoading() {
+  if (Swal.isVisible()) {
+    Swal.close();
+  }
+}
+
+function showError(title, text) {
+  return Swal.fire({
+    icon: 'error',
+    title,
+    text,
+    confirmButtonText: 'OK',
+    confirmButtonColor: '#4f46e5'
+  });
+}
+
+function showWarning(title, text) {
+  return Swal.fire({
+    icon: 'warning',
+    title,
+    text,
+    confirmButtonText: 'OK',
+    confirmButtonColor: '#4f46e5'
+  });
+}
+
+function showToast(icon, title) {
+  return Swal.fire({
+    toast: true,
+    position: 'top-end',
+    icon,
+    title,
+    showConfirmButton: false,
+    timer: 1900,
+    timerProgressBar: true
+  });
+}
+
+async function parseResponseError(response, fallbackMessage) {
+  try {
+    const data = await response.json();
+    return data.error || fallbackMessage;
+  } catch {
+    return fallbackMessage;
+  }
+}
+
+function normalizeItemKey(text) {
+  return text.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
+}
+
+function canonicalizeClassName(className) {
+  const trimmedClassName = typeof className === 'string' ? className.trim() : '';
+  return CLASS_ALIASES[trimmedClassName] || trimmedClassName;
+}
+
+function createVocabularyItem(text) {
+  return {
+    id: `vocabulary-${nextVocabularyId++}`,
+    text: text.trim().replace(/\s+/g, ' '),
+    selected: true
+  };
+}
+
+function addVocabularyItems(items) {
+  const existingKeys = new Set(globalVocabulary.map((item) => normalizeItemKey(item.text)));
+  let addedCount = 0;
+
+  for (const rawItem of items) {
+    if (typeof rawItem !== 'string') {
+      continue;
+    }
+
+    const text = rawItem.trim().replace(/\s+/g, ' ');
+    const key = normalizeItemKey(text);
+    if (!text || existingKeys.has(key)) {
+      continue;
+    }
+
+    globalVocabulary.push(createVocabularyItem(text));
+    existingKeys.add(key);
+    addedCount += 1;
+  }
+
+  renderVocabularyList();
+  return addedCount;
+}
+
+function updateSelectionUI() {
+  const validItems = globalVocabulary.filter((item) => item.text.trim());
+  const selectedCount = validItems.filter((item) => item.selected).length;
+
+  elements.selectionBar.hidden = globalVocabulary.length === 0;
+  elements.submitVocabulary.hidden = globalVocabulary.length === 0;
+  elements.submitVocabulary.disabled = selectedCount === 0;
+  elements.selectionSummary.textContent = `${selectedCount} of ${validItems.length} item${validItems.length === 1 ? '' : 's'} selected`;
+}
+
+function renderVocabularyList() {
+  elements.vocabularyList.replaceChildren();
+
+  if (globalVocabulary.length === 0) {
+    const emptyState = document.createElement('div');
+    emptyState.className = 'empty-state';
+
+    const icon = document.createElement('span');
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = '✦';
+
+    const message = document.createElement('p');
+    message.textContent = 'No items yet. Upload photos or add one manually.';
+
+    emptyState.append(icon, message);
+    elements.vocabularyList.appendChild(emptyState);
+    updateSelectionUI();
     return;
   }
 
-  // Show the upload loader
-  document.getElementById('uploadLoader').style.display = 'block';
+  for (const item of globalVocabulary) {
+    const row = document.createElement('div');
+    row.className = `vocabulary-row${item.selected ? '' : ' is-unselected'}`;
+    row.dataset.itemId = item.id;
 
-  const uploadToCloudinary = async (file) => {
-    const cloudinaryUrl = "https://api.cloudinary.com/v1_1/dzo0vucxp/image/upload";
-    const uploadPreset = "Flashcards_Data"; // Make sure this is an unsigned preset
-
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", uploadPreset);
-
-    const response = await fetch(cloudinaryUrl, {
-      method: "POST",
-      body: formData,
+    const checkbox = document.createElement('input');
+    checkbox.className = 'item-checkbox';
+    checkbox.type = 'checkbox';
+    checkbox.checked = item.selected;
+    checkbox.setAttribute('aria-label', `Include ${item.text}`);
+    checkbox.addEventListener('change', () => {
+      item.selected = checkbox.checked;
+      row.classList.toggle('is-unselected', !item.selected);
+      updateSelectionUI();
     });
 
-    if (!response.ok) {
-      throw new Error("Cloudinary upload failed");
-    }
+    const input = document.createElement('input');
+    input.className = 'item-text';
+    input.type = 'text';
+    input.value = item.text;
+    input.setAttribute('aria-label', 'Edit study item');
+    input.spellcheck = true;
+    input.addEventListener('input', () => {
+      item.text = input.value;
+      checkbox.setAttribute('aria-label', `Include ${input.value || 'empty item'}`);
+      updateSelectionUI();
+    });
+    input.addEventListener('blur', () => {
+      item.text = input.value.trim().replace(/\s+/g, ' ');
+      input.value = item.text;
+      updateSelectionUI();
+    });
 
-    const data = await response.json();
-    return data.secure_url; // Get the hosted image URL
-  };
+    const removeButton = document.createElement('button');
+    removeButton.className = 'icon-button';
+    removeButton.type = 'button';
+    removeButton.title = 'Remove item';
+    removeButton.setAttribute('aria-label', `Remove ${item.text}`);
+    removeButton.textContent = '×';
+    removeButton.addEventListener('click', () => {
+      globalVocabulary = globalVocabulary.filter((candidate) => candidate.id !== item.id);
+      renderVocabularyList();
+    });
 
-  const imageUrls = [];
-  for (let i = 0; i < fileInput.files.length; i++) {
-    const file = fileInput.files[i];
-    try {
-      const imageUrl = await uploadToCloudinary(file);
-      imageUrls.push(imageUrl);
-    } catch (error) {
-      console.error("Image upload failed:", error);
-      alert("Failed to upload images. Please try again.");
-      return;
-    }
+    row.append(checkbox, input, removeButton);
+    elements.vocabularyList.appendChild(row);
   }
 
+  updateSelectionUI();
+}
+
+async function uploadToCloudinary(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', 'Flashcards_Data');
+
+  const response = await fetch('https://api.cloudinary.com/v1_1/dzo0vucxp/image/upload', {
+    method: 'POST',
+    body: formData
+  });
+
+  if (!response.ok) {
+    throw new Error(`Could not upload ${file.name}.`);
+  }
+
+  const data = await response.json();
+  return data.secure_url;
+}
+
+elements.imageFiles.addEventListener('change', () => {
+  const files = Array.from(elements.imageFiles.files || []);
+  elements.fileSummary.textContent = files.length === 0
+    ? 'JPG, PNG, HEIC, or other image files'
+    : `${files.length} image${files.length === 1 ? '' : 's'} selected`;
+});
+
+elements.uploadForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const files = Array.from(elements.imageFiles.files || []);
+  if (!elements.classDropdown.value) {
+    await showWarning('Choose a class', 'Please select the class for this flashcard set.');
+    return;
+  }
+  if (files.length === 0) {
+    await showWarning('Choose at least one image', 'Add a whiteboard or worksheet photo first.');
+    return;
+  }
+
+  showLoading('Uploading lesson photos', `Uploading 1 of ${files.length}…`);
+
   try {
+    const imageUrls = [];
+    for (let index = 0; index < files.length; index += 1) {
+      updateLoading('Uploading lesson photos', `Uploading ${index + 1} of ${files.length}…`);
+      imageUrls.push(await uploadToCloudinary(files[index]));
+    }
+
+    updateLoading('Reading the lesson', 'AI is extracting vocabulary, phrases, and sentences…');
     const response = await fetch('/api/extractDataFromImages', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -94,52 +281,451 @@ document.getElementById('uploadForm').addEventListener('submit', async (event) =
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to fetch data from server');
+      throw new Error(await parseResponseError(response, 'Could not extract text from the images.'));
     }
 
     const { processedData } = await response.json();
-    const vocabularyArr = processedData.vocabulary || [];
-    globalVocabulary = [...new Set([...globalVocabulary, ...vocabularyArr])];
-    renderVocabularyList();
+    const extractedItems = Array.isArray(processedData?.vocabulary) ? processedData.vocabulary : [];
+    const addedCount = addVocabularyItems(extractedItems);
+
+    elements.imageFiles.value = '';
+    elements.fileSummary.textContent = 'JPG, PNG, HEIC, or other image files';
+    closeLoading();
+
+    if (addedCount === 0) {
+      await showWarning('No new items found', 'Try a clearer photo, or add the lesson text manually.');
+    } else {
+      await showToast('success', `${addedCount} item${addedCount === 1 ? '' : 's'} added`);
+    }
   } catch (error) {
-    console.error(error);
-    alert(error.message);
-  } finally {
-    // Hide the upload loader regardless of success or error
-    document.getElementById('uploadLoader').style.display = 'none';
+    console.error('Image processing failed:', error);
+    closeLoading();
+    await showError('Could not process the images', error.message || 'Please try again.');
   }
 });
 
-document.getElementById('addWordBtn').addEventListener('click', () => {
-  const additionalWordInput = document.getElementById('additionalWord');
-  const newWord = additionalWordInput.value.trim();
-
-  if (!newWord) {
-    alert('Please enter a word or phrase before adding!');
+function addManualItem() {
+  const newItem = elements.additionalWord.value.trim();
+  if (!newItem) {
+    showWarning('Enter an item first', 'Type a word, phrase, or sentence before adding it.');
     return;
   }
-  globalVocabulary = [...new Set([...globalVocabulary, newWord])];
-  renderVocabularyList();
-  additionalWordInput.value = '';
+
+  const addedCount = addVocabularyItems([newItem]);
+  if (addedCount === 0) {
+    showToast('info', 'That item is already in the list');
+    return;
+  }
+
+  elements.additionalWord.value = '';
+  elements.additionalWord.focus();
+}
+
+elements.addWordBtn.addEventListener('click', addManualItem);
+elements.additionalWord.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    addManualItem();
+  }
 });
 
-document.getElementById('submitVocabulary').addEventListener('click', async () => {
-  const checkboxes = document.querySelectorAll('#vocabularyList input[type="checkbox"]');
-  const selectedVocabulary = [];
-  checkboxes.forEach((checkbox) => {
-    if (checkbox.checked) {
-      selectedVocabulary.push(checkbox.value);
+elements.selectAllBtn.addEventListener('click', () => {
+  globalVocabulary.forEach((item) => {
+    item.selected = true;
+  });
+  renderVocabularyList();
+});
+
+elements.clearSelectionBtn.addEventListener('click', () => {
+  globalVocabulary.forEach((item) => {
+    item.selected = false;
+  });
+  renderVocabularyList();
+});
+
+function getJstParts(date = new Date()) {
+  const shiftedDate = new Date(date.getTime() + JST_OFFSET_MS);
+  return {
+    year: shiftedDate.getUTCFullYear(),
+    month: shiftedDate.getUTCMonth() + 1,
+    day: shiftedDate.getUTCDate(),
+    hour: shiftedDate.getUTCHours(),
+    minute: shiftedDate.getUTCMinutes(),
+    second: shiftedDate.getUTCSeconds()
+  };
+}
+
+function getJstDatePartsForOffset(offsetDays) {
+  const today = getJstParts();
+  const date = new Date(Date.UTC(today.year, today.month - 1, today.day + offsetDays));
+  return {
+    year: date.getUTCFullYear(),
+    month: date.getUTCMonth() + 1,
+    day: date.getUTCDate(),
+    dayOfWeek: date.getUTCDay()
+  };
+}
+
+function getScheduledTimestamp(offsetDays, minutesAfterMidnight) {
+  const today = getJstParts();
+  const hour = Math.floor(minutesAfterMidnight / 60);
+  const minute = minutesAfterMidnight % 60;
+  return Date.UTC(today.year, today.month - 1, today.day + offsetDays, hour - 9, minute, 0, 0);
+}
+
+function formatTime(minutesAfterMidnight) {
+  const hour = String(Math.floor(minutesAfterMidnight / 60)).padStart(2, '0');
+  const minute = String(minutesAfterMidnight % 60).padStart(2, '0');
+  return `${hour}:${minute}`;
+}
+
+function buildSubmissionId() {
+  const now = getJstParts();
+  return [
+    now.year,
+    String(now.month).padStart(2, '0'),
+    String(now.day).padStart(2, '0'),
+    String(now.hour).padStart(2, '0'),
+    String(now.minute).padStart(2, '0')
+  ].join('-');
+}
+
+async function copyText(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  const copied = document.execCommand('copy');
+  textarea.remove();
+
+  if (!copied) {
+    throw new Error('Copy is not available in this browser.');
+  }
+}
+
+async function checkWebhookConfiguration(className) {
+  const response = await fetch('/api/checkClassWebhook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ className })
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseResponseError(response, 'Could not verify the Discord webhook.'));
+  }
+
+  return response.json();
+}
+
+function createTimeSelect(offsetDays) {
+  const select = document.createElement('select');
+  select.className = 'time-select';
+  select.setAttribute('aria-label', 'Message time in Japan');
+
+  const now = Date.now();
+  const availableValues = [];
+
+  for (
+    let minutes = SCHEDULE_START_MINUTES;
+    minutes <= SCHEDULE_END_MINUTES;
+    minutes += SCHEDULE_INTERVAL_MINUTES
+  ) {
+    const option = document.createElement('option');
+    option.value = String(minutes);
+    option.textContent = formatTime(minutes);
+
+    const isPast = getScheduledTimestamp(offsetDays, minutes) <= now;
+    option.disabled = isPast;
+    if (!isPast) {
+      availableValues.push(minutes);
+    }
+
+    select.appendChild(option);
+  }
+
+  if (availableValues.includes(DEFAULT_SCHEDULE_MINUTES)) {
+    select.value = String(DEFAULT_SCHEDULE_MINUTES);
+  } else if (availableValues.length > 0) {
+    select.value = String(availableValues[0]);
+  }
+
+  return { select, hasAvailableTime: availableValues.length > 0 };
+}
+
+function refreshTimeAvailability(scheduleEntry) {
+  const availableOptions = [];
+  for (const option of scheduleEntry.select.options) {
+    const isPast = getScheduledTimestamp(scheduleEntry.offset, Number(option.value)) <= Date.now();
+    option.disabled = isPast;
+    if (!isPast) {
+      availableOptions.push(option);
+    }
+  }
+
+  if (scheduleEntry.select.selectedOptions[0]?.disabled && availableOptions.length > 0) {
+    scheduleEntry.select.value = availableOptions[0].value;
+  }
+
+  const hasAvailableTime = availableOptions.length > 0;
+  scheduleEntry.checkbox.disabled = !hasAvailableTime;
+  if (!hasAvailableTime) {
+    scheduleEntry.checkbox.checked = false;
+    scheduleEntry.dateNote.textContent = 'No times left today';
+  }
+
+  scheduleEntry.select.disabled = !scheduleEntry.checkbox.checked || !hasAvailableTime;
+  scheduleEntry.row.classList.toggle('is-selected', scheduleEntry.checkbox.checked);
+  scheduleEntry.row.classList.toggle('is-unavailable', !hasAvailableTime);
+}
+
+function renderScheduler(dynamicURL, selectedClass) {
+  elements.creatorFlow.hidden = true;
+  elements.schedulerSection.hidden = false;
+  elements.schedulerSection.replaceChildren();
+
+  const header = document.createElement('div');
+  header.className = 'scheduler-header';
+
+  const successMark = document.createElement('span');
+  successMark.className = 'success-mark';
+  successMark.setAttribute('aria-hidden', 'true');
+  successMark.textContent = '✓';
+
+  const title = document.createElement('h2');
+  title.textContent = 'Your flashcards are ready';
+
+  const subtitle = document.createElement('p');
+  subtitle.textContent = `Choose when the ${selectedClass} Discord reminder should be sent.`;
+  header.append(successMark, title, subtitle);
+
+  const shareLink = document.createElement('div');
+  shareLink.className = 'share-link';
+
+  const link = document.createElement('a');
+  link.href = dynamicURL;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = dynamicURL;
+
+  const copyButton = document.createElement('button');
+  copyButton.className = 'copy-button';
+  copyButton.type = 'button';
+  copyButton.textContent = 'Copy URL';
+  copyButton.addEventListener('click', async () => {
+    try {
+      await copyText(dynamicURL);
+      await showToast('success', 'URL copied');
+    } catch (error) {
+      await showError('Could not copy the URL', error.message);
+    }
+  });
+  shareLink.append(link, copyButton);
+
+  const scheduleTitle = document.createElement('h3');
+  scheduleTitle.className = 'schedule-title';
+  scheduleTitle.textContent = 'Schedule Discord reminders';
+
+  const scheduleHelp = document.createElement('p');
+  scheduleHelp.className = 'schedule-help';
+  scheduleHelp.textContent = 'All times are Japan time. Today is available whenever a future time remains.';
+
+  const scheduleList = document.createElement('div');
+  scheduleList.className = 'schedule-list';
+  const scheduleRows = [];
+
+  for (let offset = 0; offset < 7; offset += 1) {
+    const dateParts = getJstDatePartsForOffset(offset);
+    const row = document.createElement('div');
+    row.className = 'schedule-row';
+
+    const checkbox = document.createElement('input');
+    checkbox.className = 'day-checkbox';
+    checkbox.type = 'checkbox';
+    checkbox.setAttribute('aria-label', `Schedule ${dateParts.month}/${dateParts.day}`);
+
+    const dateLabel = document.createElement('div');
+    dateLabel.className = 'schedule-date';
+    dateLabel.textContent = `${dateParts.month}/${dateParts.day} (${DAY_NAMES_JA[dateParts.dayOfWeek]})`;
+
+    const dateNote = document.createElement('small');
+    dateNote.textContent = offset === 0 ? 'Today' : offset === 1 ? 'Tomorrow' : '';
+    if (dateNote.textContent) {
+      dateLabel.appendChild(dateNote);
+    }
+
+    const { select, hasAvailableTime } = createTimeSelect(offset);
+    checkbox.disabled = !hasAvailableTime;
+    checkbox.checked = hasAvailableTime && (offset === 1 || offset === 3 || offset === 5);
+    select.disabled = !checkbox.checked;
+
+    if (!hasAvailableTime) {
+      row.classList.add('is-unavailable');
+      dateNote.textContent = 'No times left today';
+      if (!dateNote.parentNode) {
+        dateLabel.appendChild(dateNote);
+      }
+    } else if (checkbox.checked) {
+      row.classList.add('is-selected');
+    }
+
+    const scheduleEntry = { offset, row, checkbox, select, dateNote };
+
+    checkbox.addEventListener('change', async () => {
+      refreshTimeAvailability(scheduleEntry);
+      if (checkbox.disabled) {
+        return;
+      }
+
+      const selectedCount = scheduleRows.filter((candidate) => candidate.checkbox.checked).length;
+      if (selectedCount > MAX_SCHEDULE_DAYS) {
+        checkbox.checked = false;
+        row.classList.remove('is-selected');
+        select.disabled = true;
+        await showWarning('Maximum six days', 'You can schedule this URL for up to six days.');
+        return;
+      }
+
+      select.disabled = !checkbox.checked;
+      row.classList.toggle('is-selected', checkbox.checked);
+    });
+
+    select.addEventListener('focus', () => refreshTimeAvailability(scheduleEntry));
+    select.addEventListener('pointerdown', () => refreshTimeAvailability(scheduleEntry));
+
+    row.append(checkbox, dateLabel, select);
+    scheduleList.appendChild(row);
+    scheduleRows.push(scheduleEntry);
+  }
+
+  const note = document.createElement('p');
+  note.className = 'schedule-note';
+  note.textContent = 'You can select up to six days. Available times run from 09:00 to 20:00 in 30-minute intervals.';
+
+  const bookingButton = document.createElement('button');
+  bookingButton.id = 'bookingButton';
+  bookingButton.className = 'btn btn-primary';
+  bookingButton.type = 'button';
+  bookingButton.textContent = 'Reserve Discord messages';
+
+  bookingButton.addEventListener('click', async () => {
+    scheduleRows.forEach(refreshTimeAvailability);
+    const selectedRows = scheduleRows.filter(({ checkbox }) => checkbox.checked && !checkbox.disabled);
+
+    if (selectedRows.length === 0) {
+      await showWarning('Choose at least one day', 'Select when the Discord reminder should be sent.');
+      return;
+    }
+    if (selectedRows.length > MAX_SCHEDULE_DAYS) {
+      await showWarning('Maximum six days', 'Please deselect at least one day.');
+      return;
+    }
+
+    const tasks = selectedRows.map(({ offset, select }) => ({
+      className: selectedClass,
+      dynamicURL,
+      scheduledTime: getScheduledTimestamp(offset, Number(select.value)),
+      status: 'not_sent',
+      createdAt: Date.now(),
+      timeZone: 'Asia/Tokyo'
+    }));
+
+    if (tasks.some((task) => task.scheduledTime <= Date.now())) {
+      await showWarning('That time has passed', 'Choose a later time for today, then try again.');
+      return;
+    }
+
+    showLoading('Checking Discord', `Verifying the webhook for ${selectedClass}…`);
+
+    try {
+      const webhookStatus = await checkWebhookConfiguration(selectedClass);
+      if (!webhookStatus.configured) {
+        closeLoading();
+        await showError(
+          'Discord webhook not configured',
+          `Add a DiscordWebhooks/${selectedClass} document with a webhookURLs array in Firestore, then try again.`
+        );
+        return;
+      }
+
+      updateLoading('Reserving messages', `Saving ${tasks.length} Discord reminder${tasks.length === 1 ? '' : 's'}…`);
+      const batch = db.batch();
+      for (const task of tasks) {
+        const taskRef = db.collection('ScheduledMessages').doc();
+        batch.set(taskRef, task);
+      }
+      await batch.commit();
+
+      closeLoading();
+      await Swal.fire({
+        icon: 'success',
+        title: 'Reservation complete',
+        text: `${tasks.length} Discord message${tasks.length === 1 ? ' is' : 's are'} scheduled.`,
+        confirmButtonText: 'Done',
+        confirmButtonColor: '#4f46e5'
+      });
+
+      scheduleRows.forEach(({ checkbox, select }) => {
+        checkbox.disabled = true;
+        select.disabled = true;
+      });
+      bookingButton.disabled = true;
+      bookingButton.textContent = 'Messages reserved';
+    } catch (error) {
+      console.error('Scheduling failed:', error);
+      closeLoading();
+      await showError('Could not reserve the messages', error.message || 'Please try again.');
     }
   });
 
-  const selectedClass = document.getElementById('classDropdown').value;
+  elements.schedulerSection.append(
+    header,
+    shareLink,
+    scheduleTitle,
+    scheduleHelp,
+    scheduleList,
+    note,
+    bookingButton
+  );
+  elements.schedulerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
-  // Show the submission loader
-  document.getElementById('submitLoader').style.display = 'block';
+elements.submitVocabulary.addEventListener('click', async () => {
+  const selectedClass = elements.classDropdown.value;
+  const selectedVocabulary = [];
+  const seen = new Set();
+
+  for (const item of globalVocabulary) {
+    const text = item.text.trim().replace(/\s+/g, ' ');
+    const key = normalizeItemKey(text);
+    if (item.selected && text && !seen.has(key)) {
+      selectedVocabulary.push(text);
+      seen.add(key);
+    }
+  }
+
+  if (!selectedClass) {
+    await showWarning('Choose a class', 'Please select the class for this flashcard set.');
+    return;
+  }
+  if (selectedVocabulary.length === 0) {
+    await showWarning('Select at least one item', 'Choose at least one non-empty item for the flashcards.');
+    return;
+  }
+
+  showLoading(
+    'Creating the flashcards',
+    'Generating translations, examples, and speech. This can take a little while…'
+  );
 
   try {
-    // 1. Call our new API endpoint to process the list of selected words via OpenAI
     const response = await fetch('/api/createDataFromList', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -147,244 +733,74 @@ document.getElementById('submitVocabulary').addEventListener('click', async () =
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || 'Failed to create data from list');
+      throw new Error(await parseResponseError(response, 'Could not create the flashcard data.'));
     }
 
-    // 2. The new endpoint returns an array of objects under "processedList"
     const { processedList } = await response.json();
+    if (!Array.isArray(processedList) || processedList.length === 0) {
+      throw new Error('The flashcard generator returned no items.');
+    }
 
-    // 3. Save the processed vocabulary data (objects) in Firestore
-    const classDocRef = db.collection('Academic-classes').doc(selectedClass);
-    const submissionsRef = classDocRef.collection('Submissions');
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const docId = `${year}-${month}-${day}-${hours}-${minutes}`;
+    updateLoading('Saving the flashcards', `Saving this set for ${selectedClass}…`);
+    const docId = buildSubmissionId();
+    const submissionRef = db
+      .collection('Academic-classes')
+      .doc(selectedClass)
+      .collection('Submissions')
+      .doc(docId);
 
-    await submissionsRef.doc(docId).set({
+    await submissionRef.set({
       Vocabulary: processedList,
       timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 
-    // Hide the submission loader
-    document.getElementById('submitLoader').style.display = 'none';
-
-    // Construct the dynamic URL
-    const encodedClass = encodeURIComponent(selectedClass);
-	const encodedDocId = encodeURIComponent(docId);
-	const dynamicURL = `https://flashcards-opal-seven.vercel.app/${encodedClass}/${encodedDocId}`;
-
-    // Hide all the existing form elements
-document.getElementById('uploadForm').style.display = 'none';
-document.getElementById('vocabularyList').style.display = 'none';
-document.getElementById('submitVocabulary').style.display = 'none';
-document.getElementById('additionalWordContainer').style.display = 'none';
-
-
-    // Show the generated URL and build the calendar UI
-const urlContainer = document.createElement('div');
-urlContainer.innerHTML = `<p>${dynamicURL}</p>`;
-
-// Create a container for the one-week calendar checkboxes
-const calendarContainer = document.createElement('div');
-
-// We will determine the current date/time in Japan
-// Create an array for day names in Japanese
-const dayNamesJa = ['日', '月', '火', '水', '木', '金', '土'];
-
-// Helper function to get a Date object in Japan for a given offset (0 for today, 1 for tomorrow, etc.)
-function getJSTDate(offsetDays) {
-  const now = new Date();
-  // Convert from local time to Japan time by adding/subtracting the difference in minutes
-  // Japan is UTC+9, but for simplicity, let's just create a new date and then shift it
-  // so that it shows local JST date. This is a simplistic approach but works for most cases.
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-  // 9 hours in milliseconds = 9 * 60 * 60000 = 32400000
-  const jstTime = utc + (9 * 60 * 60000);
-  const jstDate = new Date(jstTime);
-  
-  // Now add offsetDays in days:
-  jstDate.setDate(jstDate.getDate() + offsetDays);
-  return jstDate;
-}
-
-// Create checkboxes for 7 days starting from the current day
-// But we only allow selection of the future 6 days, so the user can't select index 0 if you want them to skip "today"
-for (let i = 0; i < 7; i++) {
-  const dateObj = getJSTDate(i);
-  const day = dateObj.getDate();
-  const month = dateObj.getMonth() + 1;
-  const dayOfWeek = dateObj.getDay(); // 0=Sun,1=Mon,...6=Sat
-
-  const label = document.createElement('label');
-  const checkbox = document.createElement('input');
-  checkbox.type = 'checkbox';
-  checkbox.value = i; // store the offset
-  checkbox.disabled = (i === 0); // disable the current day if we don't allow it
-  // If you want to allow the current day, just remove this line:
-  // checkbox.disabled = (i === 0);
-
-  // By default, if i is 1 (tomorrow), 3, or 5 => checked
-  if (i === 1 || i === 3 || i === 5) {
-    checkbox.checked = true;
-  }
-  
-  label.appendChild(checkbox);
-  label.appendChild(document.createTextNode(
-    `${month}/${day} (${dayNamesJa[dayOfWeek]})`
-  ));
-  label.style.display = 'block';
-  
-  calendarContainer.appendChild(label);
-}
-
-// We might add a note about "You can select up to 6 days"
-const note = document.createElement('p');
-note.textContent = '※ 最大 6日まで選択可能（当日を除く）';
-calendarContainer.appendChild(note);
-
-urlContainer.appendChild(calendarContainer);
-
-// Create the booking button
-const bookingBtn = document.createElement('button');
-bookingBtn.id = 'bookingButton';
-bookingBtn.textContent = '予約をする';
-
-// Add click handler for booking
-bookingBtn.addEventListener('click', async () => {
-  const checkboxes = calendarContainer.querySelectorAll('input[type="checkbox"]');
-  const selectedOffsets = [];
-  checkboxes.forEach((cb) => {
-    if (cb.checked && !cb.disabled) {
-      selectedOffsets.push(parseInt(cb.value));
-    }
-  });
-
-  if (selectedOffsets.length === 0) {
-    alert('予約日を少なくとも1日選択してください。');
-    return;
-  }
-  if (selectedOffsets.length > 6) {
-    alert('予約日は最大6日までです。');
-    return;
-  }
-
-  const selectedClass = document.getElementById('classDropdown').value;
-  const webhooksForClass = await getWebhooksForClass(selectedClass);
-
-  // We'll store each chosen day as a separate Firestore document, or store them all in one doc.
-  // The simplest is one doc per user "booking".
-  // We'll build an array of date/times in UTC, representing 17:00 JST on each chosen day.
-  const now = new Date();
-  // Convert local time to UTC if you want, or directly calculate JST.
-  
-  const tasks = selectedOffsets.map(offset => {
-  // For each offset, find 17:00 JST on that selected day,
-  // then convert it to a UTC-based timestamp in milliseconds.
-
-  const jstDate = new Date(now.getTime() + (9 * 60 * 60000)); // approximate JST base time
-  jstDate.setDate(jstDate.getDate() + offset);
-  jstDate.setHours(17, 0, 0, 0);
-
-  // Convert JST back to UTC milliseconds for storage
-  const utcTime = jstDate.getTime() - (9 * 60 * 60000);
-
-  return {
-    className: selectedClass,
-    dynamicURL,
-    webhooks: webhooksForClass,
-    scheduledTime: utcTime,
-    status: 'not_sent',
-    createdAt: Date.now()
-  };
-});
-
-  // Now we store these tasks in Firestore. For example, each one as a separate doc:
-  try {
-    // We'll create a new subcollection or top-level collection, e.g. "ScheduledMessages".
-    for (const task of tasks) {
-      const docRef = await db.collection('ScheduledMessages').add(task);
-      console.log('Created scheduled task:', docRef.id);
-    }
-
-    alert('予約が完了しました！(Scheduled successfully)');
-  } catch (err) {
-    console.error('Error scheduling tasks:', err);
-    alert('エラーが発生しました。コンソールで詳細を確認してください。');
+    const dynamicURL = `https://flashcards-opal-seven.vercel.app/${encodeURIComponent(selectedClass)}/${encodeURIComponent(docId)}`;
+    closeLoading();
+    renderScheduler(dynamicURL, selectedClass);
+  } catch (error) {
+    console.error('Flashcard creation failed:', error);
+    closeLoading();
+    await showError('Could not create the flashcards', error.message || 'Please try again.');
   }
 });
-
-
-// Append the booking button
-urlContainer.appendChild(bookingBtn);
-
-// Finally, append the entire container to the .container
-document.querySelector('.container').appendChild(urlContainer);
-
-/**
- * Example placeholder function to fetch webhooks for the chosen class.
- * You must implement this as needed. Maybe you have them stored in Firestore
- * or in a config object in your code.
- */
-/**
- * Example placeholder function to fetch webhooks for the chosen class.
- * You must implement this as needed. Maybe you have them stored in Firestore
- * or in a config object in your code.
- */
-async function getWebhooksForClass(className) {
-  try {
-    const docRef = await db.collection('DiscordWebhooks').doc(className).get();
-    if (!docRef.exists) {
-      return [];
-    }
-    const data = docRef.data();
-    return data.webhookURLs || [];
-  } catch (err) {
-    console.error('Error fetching webhooks:', err);
-    return [];
-  }
-}
-
-  } catch (err) {
-    console.error('Error storing vocabulary:', err);
-    alert('Error storing vocabulary: ' + err.message);
-  } finally {
-    // Hide the submission loader in case of error
-    document.getElementById('submitLoader').style.display = 'none';
-  }
-});
-
-/* 
-  ---------------------------------------------
-  NEW FUNCTION TO FETCH CLASS NAMES FROM FIRESTORE 
-  AND POPULATE THE DROPDOWN
-  ---------------------------------------------
-*/
 
 async function populateClassDropdown() {
-  const classDropdown = document.getElementById('classDropdown');
-  classDropdown.innerHTML = ''; // Clear any existing options
+  elements.classDropdown.disabled = true;
+  elements.classDropdown.replaceChildren(new Option('Loading classes…', ''));
 
   try {
     const snapshot = await db.collection('Academic-classes').get();
-    snapshot.forEach((doc) => {
-      // doc.id will be the class name if you're using the doc ID as the class name
-      const option = document.createElement('option');
-      option.value = doc.id;
-      option.textContent = doc.id;
-      classDropdown.appendChild(option);
-    });
+    const classNames = Array.from(new Set(snapshot.docs
+      .map((documentSnapshot) => canonicalizeClassName(documentSnapshot.id))
+      .filter(Boolean)))
+      .sort((left, right) => left.localeCompare(right, undefined, { numeric: true, sensitivity: 'base' }));
+
+    if (classNames.length === 0) {
+      throw new Error('No class documents were found in Academic-classes.');
+    }
+
+    elements.classDropdown.replaceChildren();
+    for (const className of classNames) {
+      elements.classDropdown.appendChild(new Option(className, className));
+    }
+
+    const lastClass = canonicalizeClassName(localStorage.getItem(LAST_CLASS_STORAGE_KEY));
+    if (lastClass && classNames.includes(lastClass)) {
+      elements.classDropdown.value = lastClass;
+    }
+    elements.classDropdown.disabled = false;
   } catch (error) {
-    console.error("Error fetching classes from Firestore:", error);
-    alert("Error fetching classes. Check console for details.");
+    console.error('Class loading failed:', error);
+    elements.classDropdown.replaceChildren(new Option('Could not load classes', ''));
+    await showError('Could not load the classes', error.message || 'Check Firestore and reload the page.');
   }
 }
 
-// Call the function to populate the dropdown once everything is set up
+elements.classDropdown.addEventListener('change', () => {
+  if (elements.classDropdown.value) {
+    localStorage.setItem(LAST_CLASS_STORAGE_KEY, elements.classDropdown.value);
+  }
+});
+
+renderVocabularyList();
 populateClassDropdown();
-
-

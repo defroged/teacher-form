@@ -1,173 +1,203 @@
-// flashcards/api/createDataFromList.js
-
-import OpenAI from "openai";
-import admin from "firebase-admin";
+import { randomUUID } from 'node:crypto';
+import OpenAI from 'openai';
 import pLimit from 'p-limit';
+import { storageBucket } from '../lib/firebaseAdmin.js';
+import { cleanString, createSafeFileStem, createSpeechText } from '../lib/ttsText.js';
 
-// Only initialize Admin if not already
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(
-      JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)
-    ),
-    storageBucket: "bs-class-database.firebasestorage.app"
-  });
+const DEFAULT_VOICE_ID = 'kdmDKE6EkgrWrrykO9Qt';
+const ELEVENLABS_MODEL_ID = 'eleven_v3';
+
+function wait(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
-// Grab a reference to the default bucket
-const bucket = admin.storage().bucket();
+async function requestSpeechAudio(text) {
+  const apiKey = process.env.ELEVENLABS_API_KEY;
+  if (!apiKey) {
+    throw new Error('ELEVENLABS_API_KEY is not configured.');
+  }
+
+  const voiceId = process.env.ELEVENLABS_VOICE_ID || DEFAULT_VOICE_ID;
+  const endpoint = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+  const requestBody = {
+    text: createSpeechText(text),
+    model_id: ELEVENLABS_MODEL_ID,
+    voice_settings: {
+      stability: 1
+    }
+  };
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'xi-api-key': apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'audio/mpeg'
+      },
+      body: JSON.stringify(requestBody)
+    });
+
+    if (response.ok) {
+      return Buffer.from(await response.arrayBuffer());
+    }
+
+    const responseText = (await response.text()).slice(0, 500);
+    const canRetry = response.status === 429 || response.status >= 500;
+    if (!canRetry || attempt === 3) {
+      throw new Error(`ElevenLabs returned ${response.status}: ${responseText}`);
+    }
+
+    await wait(attempt * 750);
+  }
+
+  throw new Error('ElevenLabs speech generation failed.');
+}
+
+async function generateAndStoreSpeech(text, audioType) {
+  const audioBuffer = await requestSpeechAudio(text);
+  const fileName = [
+    'flashcards_audio',
+    `${createSafeFileStem(text)}-${audioType}-${Date.now()}-${randomUUID()}.mp3`
+  ].join('/');
+
+  const file = storageBucket.file(fileName);
+  await file.save(audioBuffer, {
+    contentType: 'audio/mpeg',
+    resumable: false,
+    public: false,
+    metadata: {
+      cacheControl: 'public, max-age=31536000, immutable'
+    }
+  });
+
+  const [signedUrl] = await file.getSignedUrl({
+    action: 'read',
+    expires: '03-09-2491'
+  });
+
+  return signedUrl;
+}
+
+function normalizeGeneratedVocabulary(data, words) {
+  if (!Array.isArray(data?.vocabulary) || data.vocabulary.length !== words.length) {
+    throw new Error('The language model returned an unexpected number of vocabulary items.');
+  }
+
+  return words.map((word, index) => {
+    const generatedItem = data.vocabulary[index] || {};
+    const japanese = cleanString(generatedItem.japanese);
+    const englishExample = cleanString(generatedItem.englishExample);
+    const japaneseExample = cleanString(generatedItem.japaneseExample);
+    if (!japanese || !englishExample || !japaneseExample) {
+      throw new Error(`The language model returned incomplete data for item ${index + 1}.`);
+    }
+
+    return {
+      // The teacher's editable list is authoritative. Do not let the model alter it.
+      english: word,
+      japanese,
+      englishExample,
+      japaneseExample
+    };
+  });
+}
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', ['POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
+    return res.status(405).json({ error: `Method ${req.method} Not Allowed` });
   }
 
-  const { words } = req.body;
-  if (!words || !Array.isArray(words) || words.length === 0) {
-    return res.status(400).json({ error: 'words is required and should be a non-empty array.' });
+  const rawWords = req.body?.words;
+  if (!Array.isArray(rawWords) || rawWords.length === 0) {
+    return res.status(400).json({ error: 'words must be a non-empty array.' });
   }
 
+  const words = rawWords.map(cleanString).filter(Boolean);
+  if (words.length !== rawWords.length) {
+    return res.status(400).json({ error: 'Every vocabulary item must contain text.' });
+  }
   if (!process.env.OPENAI_API_KEY) {
     return res.status(500).json({ error: 'OpenAI API key not configured.' });
+  }
+  if (!process.env.ELEVENLABS_API_KEY) {
+    return res.status(500).json({ error: 'ElevenLabs API key not configured.' });
   }
 
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-  const messages = [
-    {
-      role: "user",
-      content: `
-      Please return ONLY pure JSON (no code blocks).
-      The JSON structure is:
-      {
-        "vocabulary": [
-          {
-            "english": "",
-            "japanese": "",
-            "englishExample": "",
-            "japaneseExample": ""
-          }
-        ]
-      }
-
-      For each of these words, create an object with:
-      - "english": the word or phrase in English,
-      - "japanese": the Japanese translation,
-      - "englishExample": a simple English example sentence,
-      - "japaneseExample": a Japanese translation of that sentence.
-
-      The words:
-      ${words.join(", ")}
-      `
-    }
-  ];
-
   try {
     const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages
+      model: 'gpt-4o',
+      response_format: { type: 'json_object' },
+      temperature: 0.2,
+      messages: [
+        {
+          role: 'system',
+          content: `Create Japanese translations and simple example sentences for ESL flashcards.
+Return only valid JSON with this exact shape:
+{"vocabulary":[{"english":"","japanese":"","englishExample":"","japaneseExample":""}]}
+
+Return exactly one object for each supplied item and keep the same order.
+- Copy each supplied item exactly into "english" without changing its spelling, capitalization, or punctuation.
+- Make every "englishExample" a natural, simple, complete sentence with a capital first letter and correct ending punctuation.
+- Translate accurately into natural Japanese.
+- Do not include markdown or commentary.`
+        },
+        {
+          role: 'user',
+          content: JSON.stringify({ items: words })
+        }
+      ]
     });
 
-    const content = completion.choices[0].message.content;
-
-    let data;
-    try {
-      data = JSON.parse(content);
-    } catch (err) {
-      console.error('Failed to parse model output as JSON:', err);
-      return res.status(500).json({ error: 'Model did not return valid JSON.' });
+    const content = completion.choices[0]?.message?.content;
+    if (!content) {
+      return res.status(502).json({ error: 'The language model returned no flashcard data.' });
     }
 
-    // ElevenLabs setup
-    const apiKey = process.env.ELEVENLABS_API_KEY;
-    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'kdmDKE6EkgrWrrykO9Qt';
-    const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`;
+    let generatedData;
+    try {
+      generatedData = JSON.parse(content);
+    } catch (error) {
+      console.error('Failed to parse flashcard model output as JSON:', error);
+      return res.status(502).json({ error: 'The language model did not return valid JSON.' });
+    }
 
+    const vocabulary = normalizeGeneratedVocabulary(generatedData, words);
+    const limit = pLimit(2);
+    const audioFailures = [];
 
-
-// Create a concurrency limiter with a limit of 10.
-const limit = pLimit(2);
-
-await Promise.all(
-  data.vocabulary.map((vocabItem) =>
-    limit(async () => {
-try {
-        // Logic: Capitalize first letter, ensure period, and add pronunciation tags
-        let textToSpeechInput = vocabItem.english || "";
-
-        if (textToSpeechInput.length > 0) {
-            // Capitalize the first letter
-            textToSpeechInput = textToSpeechInput.charAt(0).toUpperCase() + textToSpeechInput.slice(1);
-            
-            // Add a period if it doesn't end with one
-            if (!textToSpeechInput.endsWith('.')) {
-                textToSpeechInput += '.';
-            }
-
-            // Add the specific pronunciation tags
-            textToSpeechInput = `[speaking calmly and clearly] ${textToSpeechInput} [long pause]`;
+    await Promise.all(vocabulary.flatMap((vocabItem, index) => [
+      limit(async () => {
+        try {
+          vocabItem.enAudio = await generateAndStoreSpeech(vocabItem.english, 'item');
+        } catch (error) {
+          audioFailures.push(`item ${index + 1}: ${error.message}`);
+          vocabItem.enAudio = '';
         }
-
-        const requestBody = {
-          text: textToSpeechInput,
-          model_id: 'eleven_v3', 
-          voice_settings: {
-            stability: 1,
-          }
-        };
-
-        const audioResponse = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'xi-api-key': apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody)
-        });
-
-        if (!audioResponse.ok) {
-          throw new Error(`ElevenLabs TTS request failed with status: ${audioResponse.status}`);
+      }),
+      limit(async () => {
+        try {
+          vocabItem.enExampleAudio = await generateAndStoreSpeech(vocabItem.englishExample, 'example');
+        } catch (error) {
+          audioFailures.push(`example ${index + 1}: ${error.message}`);
+          vocabItem.enExampleAudio = '';
         }
+      })
+    ]));
 
-        // Read the returned audio as an ArrayBuffer
-        const audioBuffer = await audioResponse.arrayBuffer();
-        const buffer = Buffer.from(audioBuffer);
+    if (audioFailures.length > 0) {
+      console.error('One or more speech files could not be generated:', audioFailures);
+      return res.status(502).json({
+        error: 'One or more speech files could not be generated. Please try again.'
+      });
+    }
 
-        // Create a unique file name
-        const timestamp = Date.now();
-        const fileName = `flashcards_audio/${vocabItem.english}-${timestamp}.mp3`;
-
-        // Save to Firebase Storage
-        const file = bucket.file(fileName);
-        await file.save(buffer, {
-          contentType: 'audio/mpeg',
-          public: false
-        });
-
-        // Generate a signed URL so you can read the file
-        const [signedUrl] = await file.getSignedUrl({
-          action: 'read',
-          expires: '03-09-2491'
-        });
-
-        // Attach this URL to the item
-        vocabItem.enAudio = signedUrl;
-
-      } catch (error) {
-        console.error('Error fetching ElevenLabs TTS for word:', vocabItem.english, error);
-        vocabItem.enAudio = "";
-      }
-    })
-  )
-);
-
-    // Once all items have enAudio, return them
-    return res.status(200).json({ processedList: data.vocabulary });
+    return res.status(200).json({ processedList: vocabulary });
   } catch (error) {
-    console.error('Error calling OpenAI API:', error);
-    return res.status(500).json({ error: 'Internal Server Error' });
+    console.error('Error creating flashcard data:', error);
+    return res.status(500).json({ error: 'Could not create the flashcard data.' });
   }
 }
-
-

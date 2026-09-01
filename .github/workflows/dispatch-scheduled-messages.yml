@@ -1,0 +1,40 @@
+name: Dispatch scheduled Discord messages
+
+on:
+  workflow_dispatch:
+  schedule:
+    # 09:00–19:30 JST, every 30 minutes (GitHub cron uses UTC).
+    - cron: '0,30 0-10 * * *'
+    # Final selectable time: 20:00 JST.
+    - cron: '0 11 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: discord-message-scheduler
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Call the scheduler endpoint
+        env:
+          SCHEDULER_ENDPOINT_URL: ${{ vars.SCHEDULER_ENDPOINT_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$SCHEDULER_ENDPOINT_URL" ]; then
+            echo "Missing repository variable: SCHEDULER_ENDPOINT_URL"
+            exit 1
+          fi
+
+          if [ -n "$CRON_SECRET" ]; then
+            curl --fail-with-body --silent --show-error --retry 2 --max-time 90 \
+              --header "Authorization: Bearer $CRON_SECRET" \
+              "$SCHEDULER_ENDPOINT_URL"
+          else
+            curl --fail-with-body --silent --show-error --retry 2 --max-time 90 \
+              "$SCHEDULER_ENDPOINT_URL"
+          fi

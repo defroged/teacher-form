@@ -3,56 +3,99 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Teacher Form</title>
-  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#4f46e5">
+  <title>Flashcards Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
-    <h1>FLASHCARDS GENERATOR</h1>
-    
-    <div id="uploadLoader" class="loader">
-  Processing images...
-</div>
-    
-    <form id="uploadForm" class="form-card">
-      <div class="form-group">
-        <label for="classDropdown">Select Class:</label>
-		
-        <select id="classDropdown" class="form-control">
-		<!-- Options will be dynamically loaded from Firestore -->
-        </select>
-		
-      </div>
-      <div class="form-group">
-        <label for="imageFiles">Choose images:</label>
-        <input type="file" id="imageFiles" name="imageFiles" accept="image/*" multiple class="form-control">
-      </div>
-      
-      <button type="submit" class="btn">Process Images</button>
-    </form>
+  <main class="app-shell">
+    <header class="hero">
+      <span class="eyebrow">Teacher tool</span>
+      <h1>Flashcards Generator</h1>
+      <p>Turn lesson photos or typed notes into a ready-to-share flashcard set.</p>
+    </header>
 
-    <div id="vocabularyList" class="vocab-card"></div>
-  
-    <div id="additionalWordContainer" class="form-card" style="margin-top: 20px;">
-      <div class="form-group">
-        <label for="additionalWord">Add new word or phrase:</label>
-        <input type="text" id="additionalWord" class="form-control" placeholder="Enter word or phrase" />
-      </div>
-      <button id="addWordBtn" class="btn" type="button">Add to List</button>
+    <div id="creatorFlow" class="flow-stack">
+      <section class="panel" aria-labelledby="sourceHeading">
+        <div class="panel-heading">
+          <span class="step-number" aria-hidden="true">1</span>
+          <div>
+            <h2 id="sourceHeading">Choose a class and lesson photos</h2>
+            <p>Upload whiteboard or worksheet photos, then let AI extract the study items.</p>
+          </div>
+        </div>
+
+        <form id="uploadForm">
+          <div class="form-group">
+            <label for="classDropdown">Class</label>
+            <select id="classDropdown" class="form-control" required disabled>
+              <option value="">Loading classes…</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="imageFiles">Lesson photos</label>
+            <input type="file" id="imageFiles" name="imageFiles" accept="image/*" multiple class="file-input">
+            <label for="imageFiles" class="file-picker">
+              <span class="file-picker-icon" aria-hidden="true">＋</span>
+              <span>
+                <strong>Choose images</strong>
+                <small id="fileSummary">JPG, PNG, HEIC, or other image files</small>
+              </span>
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Extract text from images</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="itemsHeading">
+        <div class="panel-heading">
+          <span class="step-number" aria-hidden="true">2</span>
+          <div>
+            <h2 id="itemsHeading">Review the study items</h2>
+            <p>Edit any text and deselect items you do not want in this set.</p>
+          </div>
+        </div>
+
+        <div id="vocabularyList" class="vocabulary-list" aria-live="polite">
+          <div class="empty-state">
+            <span aria-hidden="true">✦</span>
+            <p>No items yet. Upload photos or add one manually.</p>
+          </div>
+        </div>
+
+        <div id="additionalWordContainer" class="manual-entry">
+          <label for="additionalWord">Add an item manually</label>
+          <div class="inline-field">
+            <input type="text" id="additionalWord" class="form-control" placeholder="Word, phrase, or sentence" autocomplete="off">
+            <button id="addWordBtn" class="btn btn-secondary" type="button">Add item</button>
+          </div>
+        </div>
+
+        <div id="selectionBar" class="selection-bar" hidden>
+          <span id="selectionSummary">0 items selected</span>
+          <div class="selection-actions">
+            <button id="selectAllBtn" class="text-button" type="button">Select all</button>
+            <button id="clearSelectionBtn" class="text-button" type="button">Clear</button>
+          </div>
+        </div>
+
+        <button id="submitVocabulary" class="btn btn-success" type="button" hidden>
+          Create flashcards
+        </button>
+      </section>
     </div>
-    
-    <button id="submitVocabulary" class="btn" style="display: none;">Submit</button>
-    
-<div id="submitLoader" class="loader">
-  Saving vocabulary...
-</div>
-    
-  </div>
+
+    <section id="schedulerSection" class="panel scheduler-panel" aria-live="polite" hidden></section>
+  </main>
 
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   <script src="script.js"></script>
 </body>
 </html>

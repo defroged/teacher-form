@@ -2,7 +2,15 @@
   "crons": [
     {
       "path": "/api/scheduledSendMessages",
-      "schedule": "0 8 * * *" 
+      "schedule": "0 8 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/createDataFromList.js": {
+      "maxDuration": 120
+    },
+    "api/extractDataFromImages.js": {
+      "maxDuration": 120
+    }
+  }
 }
